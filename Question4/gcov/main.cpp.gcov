@@ -1,0 +1,77 @@
+        -:    0:Source:main.cpp
+        -:    0:Graph:./graph-main.gcno
+        -:    0:Data:./graph-main.gcda
+        -:    0:Runs:8
+        -:    1:// main.cpp - Example usage of the Graph class
+        -:    2:#include "Graph.hpp"
+        -:    3:#include <iostream>
+        -:    4:#include <vector>
+        -:    5:#include <getopt.h>
+        -:    6:#include <random>
+        -:    7:
+        8:    8:int main(int argc, char* argv[])  {
+        8:    9:    int vertices = -1, edges = -1, seed = -1;
+        -:   10:    int opt;
+        8:   11:    bool v_flag = false, e_flag = false, s_flag = false;
+        -:   12:
+       28:   13:    while ((opt = getopt(argc, argv, "v:e:s:")) != -1) {
+       21:   14:        switch (opt) {
+        7:   15:            case 'v': vertices = std::stoi(optarg); v_flag = true; break;
+        7:   16:            case 'e': edges = std::stoi(optarg); e_flag = true; break;
+        6:   17:            case 's': seed = std::stoi(optarg); s_flag = true; break;
+        1:   18:            default:
+        1:   19:                std::cerr << "Usage: " << argv[0] << " -v vertices -e edges -s seed\n";
+        1:   20:                return 1;
+        -:   21:        }
+        -:   22:    }
+        -:   23:
+        -:   24:    // If any flag is missing, print usage
+        7:   25:    if (!v_flag || !e_flag || !s_flag) {
+        2:   26:        std::cerr << "Usage: " << argv[0] << " -v vertices -e edges -s seed\n";
+        2:   27:        return 1;
+        -:   28:    }
+        -:   29:
+        -:   30:    // If values are invalid, print error
+        5:   31:    if (vertices <= 0 || edges < 0) {
+        1:   32:        std::cerr << "Invalid parameters. use actual and positive numbers.\n";
+        1:   33:        return 1;
+        -:   34:    }
+        -:   35:
+        -:   36:    // Create a graph with x vertices as user gave us.
+        8:   37:    Graph::Graph g(vertices);
+        -:   38:
+        -:   39:    //set random values:
+        4:   40:    std::mt19937 rng(seed); //creating random numbers with the given seed to "Save" the random sequence.
+        4:   41:    std::uniform_int_distribution<int> dist(0, vertices - 1); // creates a uniform range of random ints from '0-vertices-1'
+        -:   42:
+        -:   43:    //add edges within the uniform range
+        4:   44:    int added = 0;
+       77:   45:    while (added < edges) {
+       73:   46:        int u = dist(rng);
+       73:   47:        int v = dist(rng);
+       73:   48:        if (u != v && !g.hasEdge(u, v)) {
+       30:   49:            g.addEdge(u, v);
+       30:   50:            ++added;
+        -:   51:        }
+        -:   52:    }
+        -:   53:
+        -:   54:    // Print the graph's adjacency list
+        4:   55:    g.printGraph();
+        -:   56:
+        -:   57:    // Print the degree of each vertex
+       24:   58:    for (int v = 0; v < g.numOfVertices(); ++v) {
+       20:   59:        std::cout << "Degree of vertex " << v << ": " << g.getVertexDegree(v) << std::endl;
+        -:   60:    }
+        -:   61:
+        -:   62:    // Find and print Eulerian circuit if exists
+        4:   63:    std::vector<int> circuit = g.isEulerianCircuit();
+        4:   64:    if (!circuit.empty()) {
+        2:   65:        std::cout << "Eulerian Circuit: ";
+       24:   66:        for (size_t i = 0; i < circuit.size(); ++i) {
+       22:   67:            std::cout << circuit[i];
+       22:   68:            if (i + 1 < circuit.size()) std::cout << " -> ";
+        -:   69:        }
+        2:   70:        std::cout << std::endl;
+        -:   71:    }
+        4:   72:    return 0;
+        -:   73:}

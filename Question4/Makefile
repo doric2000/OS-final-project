@@ -1,20 +1,45 @@
-# Basic Makefile for building the Graph project
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wextra -g
 
-# Target executable name
-TARGET = graph_test
-
-# Source files
+TARGET = graph
 SRCS = Graph.cpp main.cpp
+OBJS = Graph.o main.o
 
-# Header files (for dependency tracking)
-HEADERS = Graph.hpp
+# Coverage flags
+COVERAGE_FLAGS = -fprofile-arcs -ftest-coverage
+
+# Gprof flags
+GPROF_FLAGS = -pg
 
 all: $(TARGET)
 
-$(TARGET): $(SRCS) $(HEADERS)
-	$(CXX) $(CXXFLAGS) $(SRCS) -o $(TARGET)
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET)
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+coverage: clean
+	$(CXX) $(CXXFLAGS) $(COVERAGE_FLAGS) $(SRCS) -o $(TARGET)
+
+gprof: clean
+	$(CXX) $(CXXFLAGS) $(GPROF_FLAGS) $(SRCS) -o $(TARGET)
+
+run: $(TARGET)
+	./$(TARGET)
+
+VALGRIND_ARGS = -v 1000 -e 5000 -s 42
+
+valgrind: $(TARGET)
+	valgrind --leak-check=full ./$(TARGET) $(VALGRIND_ARGS) > valgrind_report.txt 2>&1
+
+callgrind: $(TARGET)
+	valgrind --tool=callgrind --simulate-cache=yes ./$(TARGET) $(VALGRIND_ARGS)
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) *.o *.gcda *.gcno *.gcov gmon.out callgrind.out.* valgrind_report.txt callout.*
+
+report:
+	gcov *.cpp
+
+.PHONY: all clean coverage gprof run valgrind callgrind report

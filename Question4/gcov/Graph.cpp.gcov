@@ -1,0 +1,186 @@
+        -:    0:Source:Graph.cpp
+        -:    0:Graph:./graph-Graph.gcno
+        -:    0:Data:./graph-Graph.gcda
+        -:    0:Runs:8
+        -:    1:#include "Graph.hpp"
+        -:    2:#include <iostream>
+        -:    3:#include <algorithm>
+        -:    4:#include <queue>
+        -:    5:#include <stack>
+        -:    6:
+        -:    7:namespace Graph {
+        -:    8:
+        4:    9:    Graph::Graph(int V) : NUM_OF_VERTICES(V) {
+        4:   10:        if (V <= 0) {
+    #####:   11:            std::cerr << "Error: Number of vertices must be positive" << std::endl;
+    #####:   12:            NUM_OF_VERTICES = 1;
+        -:   13:        }
+        4:   14:        adjList.resize(NUM_OF_VERTICES); //change the size of the vector to V
+        4:   15:    }
+        -:   16:
+        4:   17:    Graph::~Graph() {
+        -:   18:        //vectors clean themselves automatically
+        4:   19:    }
+        -:   20:
+       30:   21:    void Graph::addEdge(int u, int v) {
+        -:   22:        // Validate vertices
+       30:   23:        if (u < 0 || u >= NUM_OF_VERTICES || v < 0 || v >= NUM_OF_VERTICES) {
+    #####:   24:            std::cerr << "Error: Invalid vertex. Vertices must be between 0 and " 
+    #####:   25:                      << NUM_OF_VERTICES - 1 << std::endl;
+    #####:   26:            return;
+        -:   27:        }
+        -:   28:        
+        -:   29:        // Prevent self-loops
+       30:   30:        if (u == v) {
+    #####:   31:            std::cerr << "Warning: Self-loops not allowed in this implementation" << std::endl;
+    #####:   32:            return;
+        -:   33:        }
+        -:   34:        
+        -:   35:        // Check if edge already exists to prevent duplicates
+       30:   36:        if (hasEdge(u, v)) {
+    #####:   37:            std::cerr << "Warning: Edge between " << u << " and " << v << " already exists" << std::endl;
+    #####:   38:            return;
+        -:   39:        }
+        -:   40:        
+        -:   41:        // Add edge in both directions (undirected graph)
+       30:   42:        adjList[u].push_back(v);
+       30:   43:        adjList[v].push_back(u);
+        -:   44:    }
+        -:   45:
+       88:   46:    bool Graph::hasEdge(int u,int v) const{
+        -:   47:        // Validate vertices
+      88*:   48:        if (u < 0 || u >= numOfVertices() || v < 0 || v >= NUM_OF_VERTICES) {
+    #####:   49:            return false;
+        -:   50:        }
+        -:   51:        
+        -:   52:        // Check if v is in u's adjacency list
+       88:   53:        return std::find(adjList[u].begin(), adjList[u].end(), v) != adjList[u].end();
+        -:   54:    }
+        -:   55:
+      166:   56:    int Graph::numOfVertices() const {
+      166:   57:        return NUM_OF_VERTICES;
+        -:   58:    }
+        -:   59:
+    #####:   60:    const std::vector<std::vector<int>>& Graph::getAdjList() const {
+    #####:   61:        return adjList;
+        -:   62:    }
+        -:   63:
+        4:   64:    bool Graph::Connected() const {
+        4:   65:        std::vector<bool> visited(NUM_OF_VERTICES, false);
+        -:   66:
+        -:   67:        // Find a vertex with degree > 0 to start BFS
+        4:   68:        int start = -1;
+       4*:   69:        for (int i = 0; i < NUM_OF_VERTICES; ++i) {
+        4:   70:            if (!adjList[i].empty()) {
+        4:   71:                start = i;
+        4:   72:                break;
+        -:   73:            }
+        -:   74:        }
+        4:   75:        if (start == -1) {
+        -:   76:            // No edges in the graph, treat as connected
+    #####:   77:            return true;
+        -:   78:        }
+        -:   79:
+        -:   80:        // BFS
+        4:   81:        std::queue<int> q;
+        4:   82:        q.push(start);
+        4:   83:        visited[start] = true;
+        -:   84:
+       24:   85:        while (!q.empty()) {
+       20:   86:            int u = q.front();
+       20:   87:            q.pop();
+       80:   88:            for (int v : adjList[u]) {
+       60:   89:                if (!visited[v]) {
+       16:   90:                    visited[v] = true;
+       16:   91:                    q.push(v);
+        -:   92:                }
+        -:   93:            }
+        -:   94:        }
+        -:   95:
+        -:   96:        // Check that all vertices with degree > 0 were visited
+       24:   97:        for (int i = 0; i < NUM_OF_VERTICES; ++i) {
+      20*:   98:            if (!adjList[i].empty() && !visited[i]) {
+    #####:   99:                return false;
+        -:  100:            }
+        -:  101:        }
+        4:  102:        return true;
+        4:  103:    }
+        -:  104:
+        4:  105:    std::vector<int> Graph::isEulerianCircuit() const{
+        4:  106:        std::vector<int> eulerianCircuit;
+        4:  107:        if (!this->Connected()){
+    #####:  108:            std::cout << "No Eulerian Circuit! The graph is not connected." << std::endl;
+    #####:  109:            return eulerianCircuit;
+        -:  110:        }
+       17:  111:        for (int v = 0; v < numOfVertices(); v++)
+        -:  112:        {
+       15:  113:            if (this->getVertexDegree(v) %2 != 0){
+        2:  114:                std::cout << "No Eulerian Circuit! Vertex " << v << " has an odd degree." << std::endl;
+        2:  115:                return eulerianCircuit;
+        -:  116:            }
+        -:  117:        }
+        -:  118:
+        2:  119:        std::vector<std::vector<int>> graphCopy = adjList; //deep copy 
+        2:  120:        std::stack<int> stack;
+        2:  121:        int start = 0;
+        -:  122:        // Find a vertex with degree > 0 to start
+       2*:  123:        for (int i = 0; i < numOfVertices(); ++i) {
+        2:  124:            if (!graphCopy[i].empty()) {
+        2:  125:                start = i;
+        2:  126:                break;
+        -:  127:            }
+        -:  128:        }
+        2:  129:        stack.push(start);
+        -:  130:
+       44:  131:        while(!stack.empty()){
+       42:  132:            int u=stack.top();
+       42:  133:            if (!graphCopy[u].empty()){ //u has neighboors
+       20:  134:                int v = graphCopy[u].back(); //take it last neighbor
+        -:  135:                //remove edge uv as uv and as vu
+       20:  136:                graphCopy[u].pop_back();
+       20:  137:                auto it = std::find(graphCopy[v].begin(), graphCopy[v].end(), u);
+       20:  138:                if (it != graphCopy[v].end()) {
+       20:  139:                    graphCopy[v].erase(it);
+        -:  140:                }
+       20:  141:                stack.push(v);
+        -:  142:            }
+        -:  143:            else {
+        -:  144:            // No more neighbors, add to circuit
+       22:  145:            eulerianCircuit.push_back(u);
+       22:  146:            stack.pop();
+        -:  147:            }
+        -:  148:
+        -:  149:        }
+        -:  150:        // The circuit is built in reverse order
+        2:  151:        std::reverse(eulerianCircuit.begin(), eulerianCircuit.end());
+        2:  152:        return eulerianCircuit;
+        2:  153:    }
+        -:  154:
+       35:  155:    int Graph::getVertexDegree(int v) const {
+        -:  156:        // Return the number of neighbors (degree) of vertex v
+      35*:  157:        if (v < 0 || v >= numOfVertices()) {
+    #####:  158:            return 0;
+        -:  159:        }
+       35:  160:        return adjList[v].size();
+        -:  161:    }
+        -:  162:
+        4:  163:    void Graph::printGraph() const {
+        4:  164:        std::cout << "Graph with " << NUM_OF_VERTICES << " vertices:" << std::endl;
+       24:  165:        for (int i = 0; i < NUM_OF_VERTICES; ++i) {
+       20:  166:            std::cout << "Vertex " << i << ": ";
+       20:  167:            if (adjList[i].empty()) {
+    #####:  168:                std::cout << "(no neighbors)";
+        -:  169:            } else {
+       80:  170:                for (size_t j = 0; j < adjList[i].size(); ++j) {
+       60:  171:                    std::cout << adjList[i][j];
+       60:  172:                    if (j < adjList[i].size() - 1) {
+       40:  173:                        std::cout << ", ";
+        -:  174:                    }
+        -:  175:                }
+        -:  176:            }
+       20:  177:            std::cout << std::endl;
+        -:  178:        }
+        -:  179:        //std::cout << "Total edges: " << getNumEdges() << std::endl;
+        4:  180:    }
+        -:  181:
+        -:  182:} 
