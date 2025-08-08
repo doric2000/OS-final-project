@@ -64,7 +64,7 @@ namespace Graph {
     bool Graph::Connected() const {
         std::vector<bool> visited(NUM_OF_VERTICES, false);
 
-        // Find a vertex with degree > 0 to start BFS
+        // Find a vertex with detckree > 0 to start BFS
         int start = -1;
         for (int i = 0; i < NUM_OF_VERTICES; ++i) {
             if (!adjList[i].empty()) {
@@ -72,8 +72,11 @@ namespace Graph {
                 break;
             }
         }
-        if (start == -1) {
-            // No edges in the graph, treat as connected
+
+        if (start == -1 && NUM_OF_VERTICES != 1) {
+            // graph got over 1 v-x and non of them are connected (each deg(v) = 0)
+            return false;
+        }else{
             return true;
         }
 
@@ -104,10 +107,12 @@ namespace Graph {
 
     std::vector<int> Graph::isEulerianCircuit() const{
         std::vector<int> eulerianCircuit;
+
         if (!this->Connected()){
             std::cout << "No Eulerian Circuit! The graph is not connected." << std::endl;
             return eulerianCircuit;
         }
+
         for (int v = 0; v < numOfVertices(); v++)
         {
             if (this->getVertexDegree(v) %2 != 0){
@@ -126,6 +131,7 @@ namespace Graph {
                 break;
             }
         }
+
         stack.push(start);
 
         while(!stack.empty()){
@@ -145,8 +151,8 @@ namespace Graph {
             eulerianCircuit.push_back(u);
             stack.pop();
             }
-
         }
+
         // The circuit is built in reverse order
         std::reverse(eulerianCircuit.begin(), eulerianCircuit.end());
         return eulerianCircuit;

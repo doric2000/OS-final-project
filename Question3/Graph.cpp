@@ -72,8 +72,11 @@ namespace Graph {
                 break;
             }
         }
-        if (start == -1) {
-            // No edges in the graph, treat as connected
+        
+        if (start == -1 && NUM_OF_VERTICES != 1) {
+            // graph got over 1 v-x and non of them are connected (each deg(v) = 0)
+            return false;
+        }else{
             return true;
         }
 
