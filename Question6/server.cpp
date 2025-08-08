@@ -14,6 +14,9 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <vector>
+#include <sstream>
+#include "Graph.hpp"
 
 #define PORT "3490"  // the port users will be connecting to
 
@@ -108,6 +111,52 @@ int main(void)
 			get_in_addr((struct sockaddr *)&their_addr),
 			s, sizeof s);
 		printf("server: got connection from %s\n", s);
+
+		// get data from the client
+		char buf[4096];
+		int numbytes = recv(new_fd, buf, sizeof(buf)-1, 0);
+		if (numbytes <= 0) {
+			perror("recv");
+			close(new_fd);
+			continue;
+		}
+		buf[numbytes] = '\0';
+
+		//we will receive the graph as a matrix. a line for each vertex
+		std::vector<std::vector<int>> adj;
+		std::istringstream iss(buf);
+		std::string line;
+		while (std::getline(iss, line)) {
+			std::istringstream lss(line);
+			std::vector<int> row;
+			int val;
+			while (lss >> val) row.push_back(val);
+			if (!row.empty()) adj.push_back(row);
+		}
+		int num_vertices = adj.size();
+		Graph::Graph graph(num_vertices);
+		for (int i = 0; i < num_vertices; ++i) {
+			for (int j = 0; j < adj[i].size(); ++j) {
+				if (adj[i][j] > 0 && !graph.hasEdge(i, j)) {
+					graph.addEdge(i, j);
+				}
+			}
+		}
+
+		// print just in server side
+		std::vector<int> path = graph.isEulerianCircuit();
+		if (!path.empty()) {
+			printf("Eulerian Circuit: ");
+			for (size_t i = 0; i < path.size(); ++i) {
+				printf("%d%s", path[i], (i + 1 < path.size()) ? " -> " : "\n");
+			}
+		}
+		// send smthing to our client
+		const char* response = "OK";
+		send(new_fd, response, strlen(response), 0);
+
+		close(new_fd);
+		printf("server: client disconnected\n");
 	}
 
 	return 0;

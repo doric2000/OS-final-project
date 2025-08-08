@@ -13,13 +13,13 @@ GPROF_FLAGS = -pg
 
 all: $(TARGET) server client
 
-server: server.o
+server: server.o Graph.o
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
 server.o: server.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-client: client.o
+client: client.o Graph.o
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
 client.o: client.cpp
