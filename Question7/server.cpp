@@ -17,6 +17,8 @@
 #include <vector>
 #include <sstream>
 #include "Graph.hpp"
+#include "GraphAlgorithm.hpp"
+#include "GraphAlgorithmFactory.hpp"
 
 #define PORT "3490"  // the port users will be connecting to
 
@@ -122,10 +124,13 @@ int main(void)
 		}
 		buf[numbytes] = '\0';
 
-		//we will receive the graph as a matrix. a line for each vertex
-		std::vector<std::vector<int>> adj;
+		// Receive directed flag and adjacency matrix rows
 		std::istringstream iss(buf);
 		std::string line;
+		int isDirected = 0;
+		std::getline(iss, line);
+		isDirected = std::stoi(line);
+		std::vector<std::vector<int>> adj;
 		while (std::getline(iss, line)) {
 			std::istringstream lss(line);
 			std::vector<int> row;
@@ -134,31 +139,36 @@ int main(void)
 			if (!row.empty()) adj.push_back(row);
 		}
 		int num_vertices = adj.size();
-		Graph::Graph graph(num_vertices);
+		Graph::Graph graph(num_vertices, isDirected);
 		for (int i = 0; i < num_vertices; ++i) {
 			for (int j = 0; j < adj[i].size(); ++j) {
 				if (adj[i][j] > 0) {
-					for (int k = 0; k < adj[i][j]; ++k) {
-						if (!graph.hasEdge(i, j)) {
-							graph.addEdge(i, j);
-						}
-					}
+					graph.addEdge(i, j, adj[i][j]);
 				}
 			}
 		}
 
-		// print just in server side
-		std::vector<int> path = graph.isEulerianCircuit();
-		if (!path.empty()) {
-			printf("Eulerian Circuit: ");
-			for (size_t i = 0; i < path.size(); ++i) {
-				printf("%d%s", path[i], (i + 1 < path.size()) ? " -> " : "\n");
+		// Receive algorithm name
+		char algoName[64] = {0};
+		recv(new_fd, algoName, sizeof(algoName), 0);
+		std::string algorithm(algoName);
+		// Block unsupported algorithms for undirected/unweighted graphs
+		bool isWeightedDirectedRequired = (algorithm == "maxflow" || algorithm == "scc");
+		if (isWeightedDirectedRequired && !graph.isDirected()) {
+			std::string err = "Error: This algorithm requires a directed graph.";
+			send(new_fd, err.c_str(), err.size(), 0);
+		} else {
+			GraphAlgorithm* algo = GraphAlgorithmFactory::create(algorithm);
+			if (!algo) {
+				std::string err = "Error: Unsupported algorithm.";
+				send(new_fd, err.c_str(), err.size(), 0);
+			} else {
+				std::string result = algo->run(graph);
+				send(new_fd, result.c_str(), result.size(), 0);
+				delete algo;
 			}
 		}
-		// send smthing to our client
-		const char* response = "OK";
-		send(new_fd, response, strlen(response), 0);
-
+		// Finish
 		close(new_fd);
 		printf("server: client disconnected\n");
 	}
