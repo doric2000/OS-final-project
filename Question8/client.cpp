@@ -18,6 +18,10 @@
 #include "Graph.hpp"
 #include <string>
 #include <iostream>
+#include <getopt.h>
+#include <random>
+#include <set>
+#include <sstream>
 
 #define PORT "3490" // the port client will be connecting to 
 
@@ -45,6 +49,36 @@ int main(int argc, char *argv[])
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
+
+	int seed = time(NULL);
+	// getopt setup
+	int opt;
+	int mode = -1; // -1=unset, 0=manual, 1=random
+	int vertices = 0, edges = 0, max_weight = 10;
+	bool error = false;
+	while ((opt = getopt(argc, argv, "rmn:e:w:s:")) != -1) {
+		switch (opt) {
+			case 'r': mode = 1; break;
+			case 'm': mode = 0; break;
+			case 'n': vertices = atoi(optarg); break;
+			case 'e': edges = atoi(optarg); break;
+			case 'w': max_weight = atoi(optarg); break;
+			case 's': seed = atoi(optarg); break;
+			default: error = true; break;
+		}
+	}
+	if (mode == -1 || vertices <= 0 || error || (mode == 1 && edges <= 0)) {
+		fprintf(stderr,
+			"Usage: %s [-r|-m] -n <vertices> -e <edges> [-w <max_weight>] [-s <seed>]\n"
+			"  -r : random graph mode (requires -n, -e, -w) [-s <seed>]\n"
+			"  -m : manual graph mode (requires -n, -e)\n"
+			"  -n : number of vertices (>0)\n"
+			"  -e : number of edges (>0)\n"
+			"  -w : max edge weight (random mode, default 10)\n"
+			"  -s : random seed (optional, random mode only, default is current time)\n",
+			argv[0]);
+		return 1;
+	}
 
 	if ((rv = getaddrinfo(hostname, PORT, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
@@ -79,71 +113,71 @@ int main(int argc, char *argv[])
 	printf("client: connected to %s\n", s);
 	freeaddrinfo(servinfo);
 
-	// get from stdin if the graph is directed or not.
-	int isDirected;
-	printf("Is the graph directed? (0=No, 1=Yes): ");
-	if (scanf("%d", &isDirected) != 1 || (isDirected != 0 && isDirected != 1)) {
-		printf("Invalid input\n");
-		return 1;
-	}
-
-	int vertices, edges;
-	printf("Enter number of vertices: ");
-	if (scanf("%d", &vertices) != 1 || vertices <= 0) {
-		fprintf(stderr, "Error: Number of vertices must be positive integer.\n");
-		return 1;
-	}
-	printf("Enter number of edges: ");
-	if (scanf("%d", &edges) != 1 || edges < 0) {
-		fprintf(stderr, "Error: Number of edges must be non-negative integer.\n");
-		return 1;
-	}
-
+	// Build graph (always directed & weighted)
 	std::vector<std::tuple<int,int,int>> edgeList;
-	for (int i = 0; i < edges; ++i) {
-		int u, v, w;
-		printf("Enter edge %d (u v w): ", i+1);
-		if (scanf("%d %d %d", &u, &v, &w) != 3 || u < 0 || u >= vertices || v < 0 || v >= vertices || w <= 0) {
-			fprintf(stderr, "Error: Invalid edge or weight.\n");
+	if (mode == 1) {
+		// Random graph: generate 'edges' random directed edges with random weights
+		if (edges <= 0 || edges > vertices * (vertices - 1)) {
+			fprintf(stderr, "Error: Number of edges must be in [1, V*(V-1)] for directed graph without self-loops.\n");
 			return 1;
 		}
-		if (u == v) {
-			fprintf(stderr, "Warning: Self-loops not allowed.\n");
+		std::mt19937 gen(seed);
+		std::uniform_int_distribution<> weight_dist(1, max_weight);
+		std::set<std::pair<int,int>> used_edges;
+		int generated = 0;
+		while (generated < edges) {
+			int u = gen() % vertices;
+			int v = gen() % vertices;
+			if (u == v) continue; // No self-loops
+			if (used_edges.count({u, v})) continue; // No duplicate edges
+			int w = weight_dist(gen);
+			edgeList.push_back(std::make_tuple(u, v, w));
+			used_edges.insert({u, v});
+			++generated;
+		}
+	} else {
+		// Manual graph
+		if (vertices <= 0) {
+			fprintf(stderr, "Error: Number of vertices must be positive in manual mode.\n");
 			return 1;
 		}
-		bool duplicate = false;
-		for (auto& e : edgeList) {
-			if ((std::get<0>(e) == u && std::get<1>(e) == v) || (!isDirected && std::get<0>(e) == v && std::get<1>(e) == u)) duplicate = true;
-		}
-		if (duplicate) {
-			fprintf(stderr, "Warning: Duplicate edge (%d,%d) not allowed.\n", u, v);
+		if (edges <= 0) {
+			fprintf(stderr, "Error: Number of edges must be provided as a command-line argument (-e <edges>) in manual mode.\n");
 			return 1;
 		}
-		edgeList.push_back(std::make_tuple(u, v, w));
+		for (int i = 0; i < edges; ++i) {
+			int u, v, w;
+			printf("Enter edge %d (u v w): ", i+1);
+			if (scanf("%d %d %d", &u, &v, &w) != 3 || u < 0 || u >= vertices || v < 0 || v >= vertices || w <= 0) {
+				fprintf(stderr, "Error: Invalid edge or weight.\n");
+				return 1;
+			}
+			if (u == v) {
+				fprintf(stderr, "Warning: Self-loops not allowed.\n");
+				return 1;
+			}
+			bool duplicate = false;
+			for (auto& e : edgeList) {
+				if (std::get<0>(e) == u && std::get<1>(e) == v) duplicate = true;
+			}
+			if (duplicate) {
+				fprintf(stderr, "Warning: Duplicate edge (%d,%d) not allowed.\n", u, v);
+				return 1;
+			}
+			edgeList.push_back(std::make_tuple(u, v, w));
+		}
 	}
 
-	// Build adjacency matrix text
-	std::vector<std::vector<int>> adj(vertices, std::vector<int>(vertices, 0));
+	// Build one message with all parameters and edges
+	std::ostringstream oss;
+	oss << seed << "\n";
+	int directed = 1; // Always directed graph
+	oss << directed << "\n" << vertices << "\n" << edges << "\n" << max_weight << "\n";
 	for (auto& e : edgeList) {
-		int u = std::get<0>(e), v = std::get<1>(e), w = std::get<2>(e);
-		adj[u][v] = w;
-		if (!isDirected) adj[v][u] = w;
+	    oss << std::get<0>(e) << " " << std::get<1>(e) << " " << std::get<2>(e) << "\n";
 	}
-
-	char graphbuf[4096] = {0};
-	sprintf(graphbuf, "%d\n", isDirected); // Send directed flag
-	for (int i = 0; i < vertices; ++i) {
-		for (int j = 0; j < vertices; ++j) {
-			char num[8];
-			sprintf(num, "%d", adj[i][j]);
-			strcat(graphbuf, num);
-			if (j+1 < vertices) strcat(graphbuf, " ");
-		}
-		strcat(graphbuf, "\n");
-	}
-
-	// Send graph to server
-	if (send(sockfd, graphbuf, strlen(graphbuf), 0) == -1) {
+	std::string graphData = oss.str();
+	if (send(sockfd, graphData.c_str(), graphData.size(), 0) == -1) {
 		perror("send");
 		return 1;
 	}

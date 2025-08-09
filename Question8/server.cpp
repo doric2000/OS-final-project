@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <vector>
 #include <sstream>
+#include <set>
 #include "Graph.hpp"
 #include "GraphAlgorithm.hpp"
 #include "GraphAlgorithmFactory.hpp"
@@ -115,58 +116,87 @@ int main(void)
 		printf("server: got connection from %s\n", s);
 
 		// get data from the client
+		std::string full_data;
 		char buf[4096];
-		int numbytes = recv(new_fd, buf, sizeof(buf)-1, 0);
-		if (numbytes <= 0) {
-			perror("recv");
-			close(new_fd);
-			continue;
-		}
-		buf[numbytes] = '\0';
-
-		// Receive directed flag and adjacency matrix rows
-		std::istringstream iss(buf);
-		std::string line;
-		int isDirected = 0;
-		std::getline(iss, line);
-		isDirected = std::stoi(line);
-		std::vector<std::vector<int>> adj;
-		while (std::getline(iss, line)) {
-			std::istringstream lss(line);
-			std::vector<int> row;
-			int val;
-			while (lss >> val) row.push_back(val);
-			if (!row.empty()) adj.push_back(row);
-		}
-		int num_vertices = adj.size();
-		Graph::Graph graph(num_vertices, isDirected);
-		for (int i = 0; i < num_vertices; ++i) {
-			for (int j = 0; j < adj[i].size(); ++j) {
-				if (adj[i][j] > 0) {
-					graph.addEdge(i, j, adj[i][j]);
-				}
+		int total_bytes = 0;
+		while (true) {
+			int numbytes = recv(new_fd, buf, sizeof(buf)-1, 0);
+			if (numbytes <= 0) break;
+			buf[numbytes] = '\0';
+			full_data += buf;
+			total_bytes += numbytes;
+			// Stop if we have enough lines (seed + 4 params + num_edges)
+			int line_count = 0;
+			for (char c : full_data) if (c == '\n') ++line_count;
+			// We need at least 5 + num_edges lines
+			if (line_count >= 5) {
+				std::istringstream iss(full_data);
+				std::string tmp;
+				std::getline(iss, tmp); // seed
+				std::getline(iss, tmp); // directed
+				std::getline(iss, tmp); // vertices
+				int num_vertices = atoi(tmp.c_str());
+				std::getline(iss, tmp); // edges
+				int num_edges = atoi(tmp.c_str());
+				// If we have enough lines for all edges, break
+				if (line_count >= 5 + num_edges) break;
 			}
 		}
+		std::istringstream iss(full_data);
+		std::string line;
+		std::getline(iss, line); // seed
+		int seed = atoi(line.c_str());
+		std::getline(iss, line); // directed flag
+		int directed = atoi(line.c_str());
+		std::getline(iss, line); // vertices
+		int num_vertices = atoi(line.c_str());
+		std::getline(iss, line); // edges
+		int num_edges = atoi(line.c_str());
+		std::getline(iss, line); // max_weight
+		int max_weight = atoi(line.c_str());
+
+		Graph::Graph graph(num_vertices, directed);
+		std::set<std::pair<int,int>> used_edges;
+		for (int i = 0; i < num_edges; ++i) {
+			std::getline(iss, line);
+			std::istringstream lss(line);
+			int u, v, w;
+			lss >> u >> v >> w;
+			if (u < 0 || u >= num_vertices || v < 0 || v >= num_vertices || w <= 0) {
+				printf("[Server] Error: Invalid edge (%d,%d,%d)\n", u, v, w);
+				continue;
+			}
+			if (u == v) {
+				printf("[Server] Warning: Self-loop (%d,%d) ignored.\n", u, v);
+				continue;
+			}
+			if (used_edges.count({u, v})) {
+				printf("[Server] Warning: Duplicate edge (%d,%d) ignored.\n", u, v);
+				continue;
+			}
+			graph.addEdge(u, v, w);
+			used_edges.insert({u, v});
+		}
+		// Print the graph that was built
+		if (seed != -1)
+			printf("[Server] Built graph with seed %d:\n", seed);
+		else
+			printf("[Server] Built graph (manual mode):\n");
+		graph.printGraph();
 
 		// Receive algorithm name
 		char algoName[64] = {0};
 		recv(new_fd, algoName, sizeof(algoName), 0);
 		std::string algorithm(algoName);
-		// Block unsupported algorithms for undirected/unweighted graphs
-		bool isWeightedDirectedRequired = (algorithm == "maxflow" || algorithm == "scc");
-		if (isWeightedDirectedRequired && !graph.isDirected()) {
-			std::string err = "Error: This algorithm requires a directed graph.";
+		// No need to check for weighted/directed graph, all graphs are directed and weighted by default
+		GraphAlgorithm* algo = GraphAlgorithmFactory::create(algorithm);
+		if (!algo) {
+			std::string err = "Error: Unsupported algorithm.";
 			send(new_fd, err.c_str(), err.size(), 0);
 		} else {
-			GraphAlgorithm* algo = GraphAlgorithmFactory::create(algorithm);
-			if (!algo) {
-				std::string err = "Error: Unsupported algorithm.";
-				send(new_fd, err.c_str(), err.size(), 0);
-			} else {
-				std::string result = algo->run(graph);
-				send(new_fd, result.c_str(), result.size(), 0);
-				delete algo;
-			}
+			std::string result = algo->run(graph);
+			send(new_fd, result.c_str(), result.size(), 0);
+			delete algo;
 		}
 		// Finish
 		close(new_fd);
