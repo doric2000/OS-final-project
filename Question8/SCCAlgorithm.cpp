@@ -38,7 +38,7 @@ std::string SCCAlgorithm::run(const Graph::Graph& graph) {
     }
     std::string result = "Strongly connected components:";
     for (size_t i = 0; i < sccs.size(); ++i) {
-        result += "\nComponent " + std::to_string(i+1) + ": ";
+        result += "\n       Component " + std::to_string(i+1) + ": ";
         for (size_t j = 0; j < sccs[i].size(); ++j) {
             result += std::to_string(sccs[i][j]);
             if (j+1 < sccs[i].size()) result += ", ";

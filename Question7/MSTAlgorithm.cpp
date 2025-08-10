@@ -18,8 +18,15 @@ std::string MSTAlgorithm::run(const Graph::Graph& graph) {
         inMST[u] = true;
         totalWeight += minEdge[u];
         for (int v = 0; v < n; ++v) {
-            int w = graph.getEdgeWeight(u, v);
-            if (w > 0 && !inMST[v] && w < minEdge[v]) minEdge[v] = w;
+            if (!inMST[v]) {
+                int w1 = graph.getEdgeWeight(u, v);
+                int w2 = graph.getEdgeWeight(v, u);
+                int w = 0;
+                if (w1 > 0 && w2 > 0) w = std::min(w1, w2);
+                else if (w1 > 0) w = w1;
+                else if (w2 > 0) w = w2;
+                if (w > 0 && w < minEdge[v]) minEdge[v] = w;
+            }
         }
     }
     return "MST total weight: " + std::to_string(totalWeight);

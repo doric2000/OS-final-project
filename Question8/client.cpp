@@ -39,8 +39,7 @@ void *get_in_addr(struct sockaddr *sa)
 
 int main(int argc, char *argv[])
 {
-	int sockfd, numbytes;
-	char buf[MAXDATASIZE];
+	int sockfd;
 	struct addrinfo hints, *servinfo, *p;
 	int rv;
 	char s[INET6_ADDRSTRLEN];
@@ -172,7 +171,7 @@ int main(int argc, char *argv[])
 	std::ostringstream oss;
 	oss << seed << "\n";
 	int directed = 1; // Always directed graph
-	oss << directed << "\n" << vertices << "\n" << edges << "\n" << max_weight << "\n";
+	oss << directed << "\n" << vertices << "\n" << edges << "\n";
 	for (auto& e : edgeList) {
 	    oss << std::get<0>(e) << " " << std::get<1>(e) << " " << std::get<2>(e) << "\n";
 	}
@@ -182,16 +181,10 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	// Get algorithm choice from user
-	std::string algorithm;
-	std::cout << "Choose algorithm (mst, maxflow, scc, clique): ";
-	std::cin >> algorithm;
-	// Send algorithm name to server
-	send(sockfd, algorithm.c_str(), algorithm.size(), 0);
 	// Receive result from server
 	char result[1024] = {0};
 	recv(sockfd, result, sizeof(result), 0);
-	std::cout << "Result from server: " << result << std::endl;
+	std::cout << "Result from server: \n" << result << std::endl;
 	// Finish
 	close(sockfd);
 	return 0;
