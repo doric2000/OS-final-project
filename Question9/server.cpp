@@ -31,7 +31,7 @@
 
 #define PORT "3490"
 #define BACKLOG 10
-#define NUM_THREADS 11
+#define NUM_THREADS 4
 
 // Leader-Follower synchronization
 std::mutex lf_mtx;
