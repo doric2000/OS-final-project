@@ -1,0 +1,5 @@
+==18078== Memcheck, a memory error detector
+==18078== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==18078== Using Valgrind-3.18.1 and LibVEX; rerun with -h for copyright info
+==18078== Command: ./server
+==18078== 

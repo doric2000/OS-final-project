@@ -24,8 +24,6 @@
 #include <condition_variable>
 #include <queue>
 #include <memory>
-#include <atomic>
-#include <chrono>
 
 #include "Graph.hpp"
 #include "MSTAlgorithm.hpp"
@@ -120,8 +118,6 @@ BlockingQueue<JobPtr> Q_mst;
 BlockingQueue<JobPtr> Q_maxflow;
 BlockingQueue<JobPtr> Q_scc;
 BlockingQueue<JobPtr> Q_clique;
-
-std::atomic<bool> server_running{true};
 
 // ------------------- stages ---------------------
 // Each stage pops a Job, runs its algorithm, stores the result, and pushes to the next queue.
@@ -278,13 +274,11 @@ int main(void) {
     std::thread t_cq(clique_stage);
 
     // Accept loop: spawn a short-lived thread per client (keeps accept responsive)
-    while (true) {
+    for (;;) {
         struct sockaddr_storage their_addr;
         socklen_t sin_size = sizeof their_addr;
         int new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-        if (new_fd == -1) {
-            perror("accept"); continue;
-        }
+        if (new_fd == -1) { perror("accept"); continue; }
 
         char s[INET6_ADDRSTRLEN];
         inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
