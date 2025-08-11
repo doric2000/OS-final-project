@@ -1,0 +1,177 @@
+        -:    0:Source:Graph.cpp
+        -:    0:Graph:./Graph.gcno
+        -:    0:Data:./Graph.gcda
+        -:    0:Runs:39
+        -:    1:#include "Graph.hpp"
+        -:    2:#include <vector>
+        -:    3:#include <iostream>
+        -:    4:#include <algorithm>
+        -:    5:#include <queue>
+        -:    6:#include <stack>
+        -:    7:
+        -:    8:namespace Graph {
+        -:    9:
+       19:   10:    Graph::Graph(int V, bool isDirected) : n(V), directed(isDirected) {
+       19:   11:        if (V <= 0) {
+        2:   12:            std::cerr << "Error: Number of vertices must be positive" << std::endl;
+        2:   13:            n = 1;
+        -:   14:        }
+       38:   15:        adjMatrix.resize(n, std::vector<int>(n, 0));
+       19:   16:    }
+        -:   17:
+       19:   18:    Graph::~Graph() {}
+        -:   19:
+       74:   20:    void Graph::addEdge(int u, int v, int weight) {
+        -:   21:        // Validate vertices
+       74:   22:        if (u < 0 || u >= n || v < 0 || v >= n) {
+        2:   23:            std::cerr << "Error: Invalid vertex. Vertices must be between 0 and " 
+        2:   24:                      << n - 1 << std::endl;
+        2:   25:            return;
+        -:   26:        }
+        -:   27:        
+        -:   28:        // Prevent self-loops
+       72:   29:        if (u == v) {
+        1:   30:            std::cerr << "Warning: Self-loops not allowed in this implementation" << std::endl;
+        1:   31:            return;
+        -:   32:        }
+        -:   33:        
+        -:   34:        // Check if edge already exists to prevent duplicates
+       71:   35:        if (adjMatrix[u][v] != 0) {
+        1:   36:            std::cerr << "Warning: Edge between " << u << " and " << v << " already exists" << std::endl;
+        1:   37:            return;
+        -:   38:        }
+        -:   39:        
+        -:   40:        // Add edge with weight
+       70:   41:        adjMatrix[u][v] = weight;
+       70:   42:        if (!directed) adjMatrix[v][u] = weight;
+        -:   43:    }
+        -:   44:
+     5715:   45:    bool Graph::hasEdge(int u,int v) const{
+        -:   46:        // Validate vertices
+     5715:   47:        if (u < 0 || u >= n || v < 0 || v >= n) {
+    #####:   48:            return false;
+        -:   49:        }
+        -:   50:        
+        -:   51:        // Check if edge exists
+     5715:   52:        return adjMatrix[u][v] != 0;
+        -:   53:    }
+        -:   54:
+      541:   55:    int Graph::getEdgeWeight(int u, int v) const {
+        -:   56:        // Validate vertices
+      541:   57:        if (u < 0 || u >= n || v < 0 || v >= n) {
+    #####:   58:            return 0;
+        -:   59:        }
+        -:   60:        // Return the weight of the edge
+      541:   61:        return adjMatrix[u][v];
+        -:   62:    }
+        -:   63:
+      824:   64:    int Graph::numOfVertices() const {
+      824:   65:        return n;
+        -:   66:    }
+        -:   67:
+        3:   68:    bool Graph::isDirected() const {
+        3:   69:        return directed;
+        -:   70:    }
+        -:   71:
+        4:   72:    void Graph::printGraph() const {
+        4:   73:        std::cout << "Graph with " << n << " vertices:" << std::endl;
+       22:   74:        for (int i = 0; i < n; ++i) {
+       18:   75:            std::cout << "Vertex " << i << ": ";
+      104:   76:            for (int j = 0; j < n; ++j) {
+       86:   77:                if (adjMatrix[i][j] != 0) {
+       34:   78:                    std::cout << "(" << j << ", weight: " << adjMatrix[i][j] << ") ";
+        -:   79:                }
+        -:   80:            }
+       18:   81:            std::cout << std::endl;
+        -:   82:        }
+        4:   83:    }
+        -:   84:
+        4:   85:    int Graph::getVertexDegree(int v) const {
+       4*:   86:        if (v < 0 || v >= n) return 0;
+        4:   87:        int degree = 0;
+       19:   88:        for (int j = 0; j < n; ++j) {
+       15:   89:            if (adjMatrix[v][j] != 0) degree++;
+        -:   90:        }
+        4:   91:        return degree;
+        -:   92:    }
+        -:   93:
+       10:   94:    bool Graph::Connected() const {
+       20:   95:        std::vector<bool> visited(n, false);
+       10:   96:        int start = -1;
+       13:   97:        for (int i = 0; i < n; ++i) {
+       28:   98:            for (int j = 0; j < n; ++j) {
+       25:   99:                if (adjMatrix[i][j] != 0) {
+        8:  100:                    start = i;
+        8:  101:                    break;
+        -:  102:                }
+        -:  103:            }
+       11:  104:            if (start != -1) break;
+        -:  105:        }
+       10:  106:        if (start == -1 && n != 1) return false;
+        9:  107:        if (start == -1 && n == 1) return true;
+        8:  108:        std::queue<int> q;
+        8:  109:        q.push(start);
+        8:  110:        visited[start] = true;
+       36:  111:        while (!q.empty()) {
+       28:  112:            int u = q.front(); q.pop();
+      195:  113:            for (int v = 0; v < n; ++v) {
+      167:  114:                if (adjMatrix[u][v] != 0 && !visited[v]) {
+       20:  115:                    visited[v] = true;
+       20:  116:                    q.push(v);
+        -:  117:                }
+        -:  118:            }
+        -:  119:        }
+       32:  120:        for (int i = 0; i < n; ++i) {
+       27:  121:            bool hasEdge = false;
+       60:  122:            for (int j = 0; j < n; ++j) {
+       58:  123:                if (adjMatrix[i][j] != 0) { hasEdge = true; break; }
+        -:  124:            }
+       27:  125:            if (hasEdge && !visited[i]) return false;
+        -:  126:        }
+        5:  127:        return true;
+       10:  128:    }
+        -:  129:
+        2:  130:    std::vector<int> Graph::isEulerianCircuit() const {
+        2:  131:        std::vector<int> eulerianCircuit;
+        2:  132:        if (!Connected()) {
+        1:  133:            std::cout << "No Eulerian Circuit! The graph is not connected." << std::endl;
+        1:  134:            return eulerianCircuit;
+        -:  135:        }
+       1*:  136:        for (int v = 0; v < numOfVertices(); v++) {
+        1:  137:            if (getVertexDegree(v) % 2 != 0) {
+        1:  138:                std::cout << "No Eulerian Circuit! Vertex " << v << " has an odd degree." << std::endl;
+        1:  139:                return eulerianCircuit;
+        -:  140:            }
+        -:  141:        }
+    #####:  142:        std::vector<std::vector<int>> graphCopy = adjMatrix;
+    #####:  143:        std::stack<int> stack;
+    #####:  144:        int start = 0;
+    #####:  145:        for (int i = 0; i < numOfVertices(); ++i) {
+    #####:  146:            for (int j = 0; j < numOfVertices(); ++j) {
+    #####:  147:                if (graphCopy[i][j] != 0) { start = i; break; }
+        -:  148:            }
+    #####:  149:            if (start != 0) break;
+        -:  150:        }
+    #####:  151:        stack.push(start);
+    #####:  152:        while (!stack.empty()) {
+    #####:  153:            int u = stack.top();
+    #####:  154:            bool found = false;
+    #####:  155:            for (int v = 0; v < numOfVertices(); ++v) {
+    #####:  156:                if (graphCopy[u][v] != 0) {
+    #####:  157:                    graphCopy[u][v] = 0;
+    #####:  158:                    if (!isDirected()) graphCopy[v][u] = 0;
+    #####:  159:                    stack.push(v);
+    #####:  160:                    found = true;
+    #####:  161:                    break;
+        -:  162:                }
+        -:  163:            }
+    #####:  164:            if (!found) {
+    #####:  165:                eulerianCircuit.push_back(u);
+    #####:  166:                stack.pop();
+        -:  167:            }
+        -:  168:        }
+    #####:  169:        std::reverse(eulerianCircuit.begin(), eulerianCircuit.end());
+    #####:  170:        return eulerianCircuit;
+    #####:  171:    }
+        -:  172:
+        -:  173:}

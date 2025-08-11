@@ -1,0 +1,184 @@
+        -:    0:Source:test_server_coverage.cpp
+        -:    0:Graph:./test_server_coverage.gcno
+        -:    0:Data:-
+        -:    0:Runs:0
+        -:    1:/*
+        -:    2:** test_server_coverage.cpp -- Test server.cpp with proper signal handling
+        -:    3:** This will start the server, exercise its functions, and terminate it properly
+        -:    4:*/
+        -:    5:
+        -:    6:#include <iostream>
+        -:    7:#include <thread>
+        -:    8:#include <chrono>
+        -:    9:#include <signal.h>
+        -:   10:#include <sys/wait.h>
+        -:   11:#include <unistd.h>
+        -:   12:#include <sys/socket.h>
+        -:   13:#include <netinet/in.h>
+        -:   14:#include <arpa/inet.h>
+        -:   15:#include <cstring>
+        -:   16:#include <vector>
+        -:   17:
+    #####:   18:void send_test_graph_to_server(int port = 3490) {
+    #####:   19:    std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Let server start
+        -:   20:    
+    #####:   21:    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    #####:   22:    if (sockfd == -1) return;
+        -:   23:    
+        -:   24:    struct sockaddr_in server_addr;
+    #####:   25:    memset(&server_addr, 0, sizeof(server_addr));
+    #####:   26:    server_addr.sin_family = AF_INET;
+    #####:   27:    server_addr.sin_port = htons(port);
+    #####:   28:    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        -:   29:    
+    #####:   30:    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == 0) {
+        -:   31:        // Send a test graph to exercise the server pipeline
+        -:   32:        std::string test_graph = 
+        -:   33:            "12345\n"      // seed
+        -:   34:            "1\n"          // directed
+        -:   35:            "4\n"          // vertices  
+        -:   36:            "5\n"          // edges
+        -:   37:            "0 1 10\n"     // edge data
+        -:   38:            "1 2 20\n"
+        -:   39:            "2 3 30\n"
+        -:   40:            "3 0 40\n"
+    #####:   41:            "1 3 15\n";
+        -:   42:        
+    #####:   43:        send(sockfd, test_graph.c_str(), test_graph.size(), 0);
+        -:   44:        
+        -:   45:        // Read response
+        -:   46:        char buffer[4096];
+    #####:   47:        recv(sockfd, buffer, sizeof(buffer), 0);
+        -:   48:        
+    #####:   49:        std::cout << "Successfully sent graph to server and received response" << std::endl;
+    #####:   50:    }
+        -:   51:    
+    #####:   52:    close(sockfd);
+        -:   53:}
+        -:   54:
+    #####:   55:int main() {
+    #####:   56:    std::cout << "=== SERVER COVERAGE TEST ===" << std::endl;
+        -:   57:    
+        -:   58:    // Build server first
+    #####:   59:    system("make server 2>/dev/null");
+        -:   60:    
+        -:   61:    // Start server in background
+    #####:   62:    pid_t server_pid = fork();
+    #####:   63:    if (server_pid == 0) {
+        -:   64:        // Child process - run server
+    #####:   65:        execl("./server", "./server", (char*)nullptr);
+    #####:   66:        exit(1);
+    #####:   67:    } else if (server_pid > 0) {
+    #####:   68:        std::cout << "Started server with PID: " << server_pid << std::endl;
+        -:   69:        
+        -:   70:        // Give server time to start
+    #####:   71:        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        -:   72:        
+        -:   73:        // Send multiple test graphs to exercise different paths
+    #####:   74:        std::cout << "Sending test graphs..." << std::endl;
+        -:   75:        
+        -:   76:        // Test 1: Basic directed graph
+    #####:   77:        send_test_graph_to_server();
+        -:   78:        
+        -:   79:        // Test 2: Different graph
+    #####:   80:        std::thread([]{
+    #####:   81:            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    #####:   82:            int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    #####:   83:            if (sockfd != -1) {
+        -:   84:                struct sockaddr_in server_addr;
+    #####:   85:                memset(&server_addr, 0, sizeof(server_addr));
+    #####:   86:                server_addr.sin_family = AF_INET;
+    #####:   87:                server_addr.sin_port = htons(3490);
+    #####:   88:                server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        -:   89:                
+    #####:   90:                if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == 0) {
+        -:   91:                    std::string test_graph = 
+        -:   92:                        "54321\n"
+        -:   93:                        "0\n"
+        -:   94:                        "3\n"
+        -:   95:                        "3\n"
+        -:   96:                        "0 1 5\n"
+        -:   97:                        "1 2 10\n"
+    #####:   98:                        "2 0 15\n";
+        -:   99:                    
+    #####:  100:                    send(sockfd, test_graph.c_str(), test_graph.size(), 0);
+        -:  101:                    
+        -:  102:                    char buffer[4096];
+    #####:  103:                    recv(sockfd, buffer, sizeof(buffer), 0);
+        -:  104:                    
+    #####:  105:                    std::cout << "Sent second graph to server" << std::endl;
+    #####:  106:                }
+    #####:  107:                close(sockfd);
+        -:  108:            }
+    #####:  109:        }).join();
+        -:  110:        
+        -:  111:        // Test 3: Stress test with multiple concurrent connections
+    #####:  112:        std::vector<std::thread> threads;
+    #####:  113:        for (int i = 0; i < 3; i++) {
+    #####:  114:            threads.emplace_back([i]{
+    #####:  115:                std::this_thread::sleep_for(std::chrono::milliseconds(200 + i * 50));
+    #####:  116:                int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    #####:  117:                if (sockfd != -1) {
+        -:  118:                    struct sockaddr_in server_addr;
+    #####:  119:                    memset(&server_addr, 0, sizeof(server_addr));
+    #####:  120:                    server_addr.sin_family = AF_INET;
+    #####:  121:                    server_addr.sin_port = htons(3490);
+    #####:  122:                    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        -:  123:                    
+    #####:  124:                    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == 0) {
+        -:  125:                        std::string test_graph = 
+    #####:  126:                            std::to_string(1000 + i) + "\n"
+        -:  127:                            "1\n"
+        -:  128:                            "5\n"
+        -:  129:                            "6\n"
+        -:  130:                            "0 1 1\n"
+        -:  131:                            "1 2 2\n"
+        -:  132:                            "2 3 3\n"
+        -:  133:                            "3 4 4\n"
+        -:  134:                            "4 0 5\n"
+    #####:  135:                            "1 4 6\n";
+        -:  136:                        
+    #####:  137:                        send(sockfd, test_graph.c_str(), test_graph.size(), 0);
+        -:  138:                        
+        -:  139:                        char buffer[4096];
+    #####:  140:                        recv(sockfd, buffer, sizeof(buffer), 0);
+        -:  141:                        
+    #####:  142:                        std::cout << "Completed concurrent test " << i << std::endl;
+    #####:  143:                    }
+    #####:  144:                    close(sockfd);
+        -:  145:                }
+    #####:  146:            });
+        -:  147:        }
+        -:  148:        
+    #####:  149:        for (auto& t : threads) {
+    #####:  150:            t.join();
+        -:  151:        }
+        -:  152:        
+    #####:  153:        std::cout << "All tests completed. Shutting down server..." << std::endl;
+        -:  154:        
+        -:  155:        // Send termination signal to server
+    #####:  156:        kill(server_pid, SIGUSR1);
+        -:  157:        
+        -:  158:        // Wait a bit for graceful shutdown
+    #####:  159:        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        -:  160:        
+        -:  161:        // If still running, force kill
+        -:  162:        int status;
+    #####:  163:        if (waitpid(server_pid, &status, WNOHANG) == 0) {
+    #####:  164:            std::cout << "Server didn't exit gracefully, sending SIGTERM..." << std::endl;
+    #####:  165:            kill(server_pid, SIGTERM);
+    #####:  166:            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        -:  167:            
+    #####:  168:            if (waitpid(server_pid, &status, WNOHANG) == 0) {
+    #####:  169:                std::cout << "Force killing server..." << std::endl;
+    #####:  170:                kill(server_pid, SIGKILL);
+        -:  171:            }
+        -:  172:        }
+        -:  173:        
+    #####:  174:        waitpid(server_pid, &status, 0);
+    #####:  175:        std::cout << "Server terminated." << std::endl;
+    #####:  176:    }
+        -:  177:    
+    #####:  178:    std::cout << "=== SERVER COVERAGE TEST COMPLETED ===" << std::endl;
+    #####:  179:    return 0;
+        -:  180:}

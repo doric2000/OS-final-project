@@ -1,0 +1,23 @@
+=== Code Coverage Summary Report ===
+Project Files Coverage:
+
+=== CliqueCountAlgorithm.cpp ===
+
+=== Graph.cpp ===
+
+=== MSTAlgorithm.cpp ===
+
+=== MaxFlowAlgorithm.cpp ===
+
+=== SCCAlgorithm.cpp ===
+
+=== client.cpp ===
+
+=== server.cpp ===
+
+=== test_coverage.cpp ===
+
+=== GraphAlgorithm.hpp ===
+
+=== GraphAlgorithmFactory.hpp ===
+

@@ -1,0 +1,25 @@
+=== Final Code Coverage Report ===
+Date: Mon Aug 11 21:56:24 IDT 2025
+
+PROJECT SOURCE FILES (.cpp):
+
+1. CliqueCountAlgorithm.cpp - 100.00% (14/14 lines)
+2. Graph.cpp - 50.47% (54/107 lines)
+3. GraphAlgorithmFactory.cpp - 0.00% (0/0 lines - no executable code)
+4. MSTAlgorithm.cpp - 100.00% (24/24 lines)
+5. MaxFlowAlgorithm.cpp - 100.00% (36/36 lines)
+6. SCCAlgorithm.cpp - 100.00% (37/37 lines)
+7. client.cpp - 62.14% (64/103 lines)
+8. server.cpp - 0.00% (0/149 lines)
+9. test_coverage.cpp - 100.00% (129/129 lines)
+
+PROJECT HEADER FILES (.hpp):
+
+1. CliqueCountAlgorithm.hpp - N/A (0 executable lines)
+2. Graph.hpp - N/A (0 executable lines)
+3. GraphAlgorithm.hpp - 66.67% (2/3 lines)
+4. GraphAlgorithmFactory.hpp - 100.00% (6/6 lines)
+5. MSTAlgorithm.hpp - N/A (0 executable lines)
+6. MaxFlowAlgorithm.hpp - N/A (0 executable lines)
+7. SCCAlgorithm.hpp - N/A (0 executable lines)
+

@@ -1,0 +1,24 @@
+        -:    0:Source:GraphAlgorithm.hpp
+        -:    0:Graph:./test_enhanced_coverage.gcno
+        -:    0:Data:./test_enhanced_coverage.gcda
+        -:    0:Runs:1
+        -:    1:#ifndef GRAPH_ALGORITHM_HPP
+        -:    2:#define GRAPH_ALGORITHM_HPP
+        -:    3:
+        -:    4:#include "Graph.hpp"
+        -:    5:#include <string>
+        -:    6:
+        -:    7:class GraphAlgorithm {
+        -:    8:public:
+      32*:    9:    virtual ~GraphAlgorithm() {}
+------------------
+_ZN14GraphAlgorithmD0Ev:
+    #####:    9:    virtual ~GraphAlgorithm() {}
+------------------
+_ZN14GraphAlgorithmD2Ev:
+       32:    9:    virtual ~GraphAlgorithm() {}
+------------------
+        -:   10:    virtual std::string run(const Graph::Graph& graph) = 0;
+        -:   11:};
+        -:   12:
+        -:   13:#endif // GRAPH_ALGORITHM_HPP

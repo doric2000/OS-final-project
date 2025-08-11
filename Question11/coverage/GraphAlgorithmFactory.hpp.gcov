@@ -1,0 +1,29 @@
+        -:    0:Source:GraphAlgorithmFactory.hpp
+        -:    0:Graph:./test_enhanced_coverage.gcno
+        -:    0:Data:./test_enhanced_coverage.gcda
+        -:    0:Runs:1
+        -:    1:#ifndef GRAPH_ALGORITHM_FACTORY_HPP
+        -:    2:#define GRAPH_ALGORITHM_FACTORY_HPP
+        -:    3:
+        -:    4:#include "MSTAlgorithm.hpp"
+        -:    5:#include "MaxFlowAlgorithm.hpp"
+        -:    6:#include "SCCAlgorithm.hpp"
+        -:    7:#include "CliqueCountAlgorithm.hpp"
+        -:    8:#include "GraphAlgorithm.hpp"
+        -:    9:#include <string>
+        -:   10:
+        -:   11://factory :
+        -:   12:
+        -:   13:class GraphAlgorithmFactory {
+        -:   14:public:
+        7:   15:    static GraphAlgorithm* create(const std::string& name) {
+       7*:   16:        if (name == "mst") return new MSTAlgorithm();
+       6*:   17:        if (name == "maxflow") return new MaxFlowAlgorithm();
+       5*:   18:        if (name == "scc") return new SCCAlgorithm();
+       4*:   19:        if (name == "clique") return new CliqueCountAlgorithm();
+        -:   20:        // more algorithms here :D
+        3:   21:        return nullptr;
+        -:   22:    }
+        -:   23:};
+        -:   24:
+        -:   25:#endif // GRAPH_ALGORITHM_FACTORY_HPP

@@ -1,0 +1,11 @@
+==222011== Callgrind, a call-graph generating cache profiler
+==222011== Copyright (C) 2002-2017, and GNU GPL'd, by Josef Weidendorfer et al.
+==222011== Using Valgrind-3.24.0 and LibVEX; rerun with -h for copyright info
+==222011== Command: ./client -r -n 5 -e 7
+==222011== 
+==222011== For interactive control, run 'callgrind_control -h'.
+==222011== 
+==222011== Events    : Ir
+==222011== Collected : 1747839
+==222011== 
+==222011== I   refs:      1,747,839

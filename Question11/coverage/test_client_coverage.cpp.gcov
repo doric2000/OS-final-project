@@ -1,0 +1,114 @@
+        -:    0:Source:test_client_coverage.cpp
+        -:    0:Graph:./test_client_coverage.gcno
+        -:    0:Data:./test_client_coverage.gcda
+        -:    0:Runs:1
+        -:    1:/*
+        -:    2:** test_client_coverage.cpp -- Test client.cpp with all argument combinations
+        -:    3:** This will exercise all code paths in client.cpp including error conditions
+        -:    4:*/
+        -:    5:
+        -:    6:#include <iostream>
+        -:    7:#include <cstdlib>
+        -:    8:#include <unistd.h>
+        -:    9:#include <sys/wait.h>
+        -:   10:#include <vector>
+        -:   11:#include <string>
+        -:   12:
+       17:   13:void test_client_with_args(const std::vector<std::string>& args) {
+       17:   14:    pid_t pid = fork();
+       17:   15:    if (pid == 0) {
+        -:   16:        // Child process - exec client with arguments
+    #####:   17:        std::vector<char*> argv;
+    #####:   18:        argv.push_back(const_cast<char*>("./client"));
+        -:   19:        
+    #####:   20:        for (const auto& arg : args) {
+    #####:   21:            argv.push_back(const_cast<char*>(arg.c_str()));
+        -:   22:        }
+    #####:   23:        argv.push_back(nullptr);
+        -:   24:        
+        -:   25:        // Redirect stderr to /dev/null to avoid spam
+    #####:   26:        freopen("/dev/null", "w", stderr);
+        -:   27:        
+    #####:   28:        execv("./client", argv.data());
+    #####:   29:        exit(1); // If exec fails
+       17:   30:    } else if (pid > 0) {
+        -:   31:        // Parent process - wait for child
+        -:   32:        int status;
+       17:   33:        waitpid(pid, &status, 0);
+        -:   34:    }
+       17:   35:}
+        -:   36:
+        1:   37:int main() {
+        1:   38:    std::cout << "=== CLIENT COVERAGE TEST ===" << std::endl;
+        1:   39:    std::cout << "Testing all client argument combinations..." << std::endl;
+        -:   40:    
+        -:   41:    // Build client first
+        1:   42:    system("make client 2>/dev/null");
+        -:   43:    
+        -:   44:    // Test cases that hit different code paths
+        -:   45:    std::vector<std::vector<std::string>> test_cases = {
+        -:   46:        // Test IPv6 hostname (hits IPv6 path in get_in_addr)
+        -:   47:        {"-h", "::1"},
+        -:   48:        
+        -:   49:        // Test manual mode flag
+        -:   50:        {"-m"},
+        -:   51:        
+        -:   52:        // Test weight argument
+        -:   53:        {"-w", "100"},
+        -:   54:        
+        -:   55:        // Test seed argument
+        -:   56:        {"-s", "12345"},
+        -:   57:        
+        -:   58:        // Test invalid argument (hits default case)
+        -:   59:        {"-x"},
+        -:   60:        
+        -:   61:        // Test manual mode with missing edges (error path)
+        -:   62:        {"-m", "-v", "5"},
+        -:   63:        
+        -:   64:        // Test manual mode with zero vertices (error path)
+        -:   65:        {"-m", "-v", "0", "-e", "5"},
+        -:   66:        
+        -:   67:        // Test manual mode with negative vertices (error path)
+        -:   68:        {"-m", "-v", "-1", "-e", "5"},
+        -:   69:        
+        -:   70:        // Test manual mode with zero edges (error path)
+        -:   71:        {"-m", "-v", "5", "-e", "0"},
+        -:   72:        
+        -:   73:        // Test manual mode with negative edges (error path)
+        -:   74:        {"-m", "-v", "5", "-e", "-1"},
+        -:   75:        
+        -:   76:        // Test directed graph with too many edges
+        -:   77:        {"-d", "-v", "3", "-e", "10"},
+        -:   78:        
+        -:   79:        // Test undirected graph with too many edges
+        -:   80:        {"-v", "3", "-e", "10"},
+        -:   81:        
+        -:   82:        // Test valid manual mode directed
+        -:   83:        {"-m", "-d", "-v", "3", "-e", "3"},
+        -:   84:        
+        -:   85:        // Test valid manual mode undirected
+        -:   86:        {"-m", "-v", "3", "-e", "2"},
+        -:   87:        
+        -:   88:        // Test random mode with all options
+        -:   89:        {"-d", "-v", "5", "-e", "8", "-w", "50", "-s", "999"},
+        -:   90:        
+        -:   91:        // Test connection to non-existent server (hits connection error paths)
+        -:   92:        {"-h", "192.0.2.1"}, // RFC5737 test address that won't exist
+        -:   93:        
+        -:   94:        // Test invalid hostname (hits getaddrinfo error)
+        -:   95:        {"-h", "invalid.hostname.that.does.not.exist.999"},
+       19:   96:    };
+        -:   97:    
+       18:   98:    for (size_t i = 0; i < test_cases.size(); i++) {
+       17:   99:        std::cout << "Test case " << (i+1) << ": ";
+       81:  100:        for (const auto& arg : test_cases[i]) {
+       64:  101:            std::cout << arg << " ";
+        -:  102:        }
+       17:  103:        std::cout << std::endl;
+        -:  104:        
+       17:  105:        test_client_with_args(test_cases[i]);
+        -:  106:    }
+        -:  107:    
+        1:  108:    std::cout << "=== CLIENT COVERAGE TEST COMPLETED ===" << std::endl;
+        1:  109:    return 0;
+        4:  110:}

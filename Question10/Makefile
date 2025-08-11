@@ -30,22 +30,31 @@ clean:
 
 # Valgrind targets for server
 valgrind-memcheck-server: server
-	valgrind --leak-check=full --show-leak-kinds=all ./server > valgrind_memcheck_server.log 2>&1
+	mkdir -p results
+	timeout 10s valgrind --leak-check=full --show-leak-kinds=all ./server 2> results/memcheck_server.txt || true
 
 valgrind-helgrind-server: server
-	valgrind --tool=helgrind ./server > valgrind_helgrind_server.log 2>&1
+	mkdir -p results
+	timeout 10s valgrind --tool=helgrind ./server 2> results/helgrind_server.txt || true
 
-valgrind-callgrind-server: server
-	valgrind --tool=callgrind ./server > valgrind_callgrind_server.log 2>&1
+valgrind-cg-server: server
+	mkdir -p results
+	timeout 10s valgrind --tool=callgrind ./server 2> results/cg_server.txt || true
 
-# Valgrind targets for client
-valgrind-memcheck-client: client
-	valgrind --leak-check=full --show-leak-kinds=all ./client > valgrind_memcheck_client.log 2>&1
+# Valgrind targets for client (with test parameters)
+valgrind-memcheck-client: client server
+	mkdir -p results
+	./server & SERVER_PID=$$!; sleep 1; valgrind --leak-check=full --show-leak-kinds=all ./client -r -n 5 -e 7 2> results/memcheck_client.txt; kill $$SERVER_PID 2>/dev/null || true
 
-valgrind-helgrind-client: client
-	valgrind --tool=helgrind ./client > valgrind_helgrind_client.log 2>&1
+valgrind-helgrind-client: client server
+	mkdir -p results
+	./server & SERVER_PID=$$!; sleep 1; valgrind --tool=helgrind ./client -r -n 5 -e 7 2> results/helgrind_client.txt; kill $$SERVER_PID 2>/dev/null || true
 
-valgrind-callgrind-client: client
-	valgrind --tool=callgrind ./client > valgrind_callgrind_client.log 2>&1
+valgrind-cg-client: client server
+	mkdir -p results
+	./server & SERVER_PID=$$!; sleep 1; valgrind --tool=callgrind ./client -r -n 5 -e 7 2> results/cg_client.txt; kill $$SERVER_PID 2>/dev/null || true
 
-.PHONY: all clean valgrind-memcheck-server valgrind-helgrind-server valgrind-callgrind-server valgrind-memcheck-client valgrind-helgrind-client valgrind-callgrind-client
+# Run all valgrind analyses
+valgrind-all: all valgrind-memcheck-server valgrind-helgrind-server valgrind-cg-server valgrind-memcheck-client valgrind-helgrind-client valgrind-cg-client
+
+.PHONY: all clean valgrind-memcheck-server valgrind-helgrind-server valgrind-cg-server valgrind-memcheck-client valgrind-helgrind-client valgrind-cg-client valgrind-all

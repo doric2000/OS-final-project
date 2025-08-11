@@ -1,0 +1,336 @@
+        -:    0:Source:server.cpp
+        -:    0:Graph:./server.gcno
+        -:    0:Data:./server.gcda
+        -:    0:Runs:2
+        -:    1:/*
+        -:    2:** server.cpp -- pipeline server: 4 Active Objects (MST -> MaxFlow -> SCC -> Clique)
+        -:    3:** Sync back to client thread via condition_variable (no std::promise/future).
+        -:    4:*/
+        -:    5:
+        -:    6:#include <stdio.h>
+        -:    7:#include <stdlib.h>
+        -:    8:#include <unistd.h>
+        -:    9:#include <errno.h>
+        -:   10:#include <string.h>
+        -:   11:#include <sys/types.h>
+        -:   12:#include <sys/socket.h>
+        -:   13:#include <netinet/in.h>
+        -:   14:#include <netdb.h>
+        -:   15:#include <arpa/inet.h>
+        -:   16:#include <sys/wait.h>
+        -:   17:#include <signal.h>
+        -:   18:
+        -:   19:#include <vector>
+        -:   20:#include <sstream>
+        -:   21:#include <set>
+        -:   22:#include <thread>
+        -:   23:#include <mutex>
+        -:   24:#include <condition_variable>
+        -:   25:#include <queue>
+        -:   26:#include <memory>
+        -:   27:
+        -:   28:#include "Graph.hpp"
+        -:   29:#include "MSTAlgorithm.hpp"
+        -:   30:#include "MaxFlowAlgorithm.hpp"
+        -:   31:#include "SCCAlgorithm.hpp"
+        -:   32:#include "CliqueCountAlgorithm.hpp"
+        -:   33:
+        -:   34:#define PORT "3490"
+        -:   35:#define BACKLOG 10
+        -:   36:
+        -:   37:// Global flag for graceful shutdown
+        -:   38:volatile sig_atomic_t shutdown_requested = 0;
+        -:   39:
+        -:   40:// Signal handler for graceful shutdown
+    #####:   41:void signal_handler(int sig) {
+        -:   42:    (void)sig; // Suppress unused parameter warning
+    #####:   43:    shutdown_requested = 1;
+        -:   44:    // Exit normally to allow gcov data to be written
+    #####:   45:    exit(0);
+        -:   46:}
+        -:   47:
+        -:   48:// ------------------- helpers -------------------
+    #####:   49:static void *get_in_addr(struct sockaddr *sa) {
+    #####:   50:    if (sa->sa_family == AF_INET)  return &(((struct sockaddr_in*)sa)->sin_addr);
+    #####:   51:    return &(((struct sockaddr_in6*)sa)->sin6_addr);
+        -:   52:}
+        -:   53:
+        -:   54:// Read full message: 4 headers (seed, directed, vertices, edges) + <edges> lines: "u v w"
+    #####:   55:static bool recv_full_message(int fd, std::string& out) {
+    #####:   56:    out.clear();
+        -:   57:    char buf[4096];
+    #####:   58:    int expected_lines = -1;
+        -:   59:
+        -:   60:    for (;;) {
+    #####:   61:        int n = recv(fd, buf, sizeof(buf)-1, 0);
+    #####:   62:        if (n <= 0) break;
+    #####:   63:        buf[n] = '\0';
+    #####:   64:        out += buf;
+        -:   65:
+    #####:   66:        int lc = 0; for (char c : out) if (c=='\n') ++lc;
+    #####:   67:        if (expected_lines == -1 && lc >= 4) {
+    #####:   68:            std::istringstream peek(out);
+    #####:   69:            std::string tmp;
+    #####:   70:            std::getline(peek,tmp); // seed
+    #####:   71:            std::getline(peek,tmp); // directed
+    #####:   72:            std::getline(peek,tmp); // vertices
+    #####:   73:            std::getline(peek,tmp); // edges
+    #####:   74:            int edges = atoi(tmp.c_str());
+    #####:   75:            expected_lines = 4 + edges;
+    #####:   76:        }
+    #####:   77:        if (expected_lines != -1) {
+    #####:   78:            int lc2 = 0; for (char c : out) if (c=='\n') ++lc2;
+    #####:   79:            if (lc2 >= expected_lines) break;
+        -:   80:        }
+    #####:   81:    }
+        -:   82:
+    #####:   83:    if (expected_lines == -1) return false;
+    #####:   84:    int lc = 0; for (char c : out) if (c=='\n') ++lc;
+    #####:   85:    return lc >= expected_lines;
+        -:   86:}
+        -:   87:
+        -:   88:// ----------------- BlockingQueue -----------------
+        -:   89:template <typename T>
+        -:   90:class BlockingQueue {
+        -:   91:public:
+    #####:   92:    void push(T x) {
+    #####:   93:        std::unique_lock<std::mutex> lk(m_);
+    #####:   94:        q_.push(std::move(x));
+    #####:   95:        cv_.notify_one();
+    #####:   96:    }
+    #####:   97:    T pop() {
+    #####:   98:        std::unique_lock<std::mutex> lk(m_);
+    #####:   99:        cv_.wait(lk, [&]{ return !q_.empty(); });
+    #####:  100:        T x = std::move(q_.front());
+    #####:  101:        q_.pop();
+    #####:  102:        return x;
+    #####:  103:    }
+        -:  104:private:
+        -:  105:    std::mutex m_;
+        -:  106:    std::condition_variable cv_;
+        -:  107:    std::queue<T> q_;
+        -:  108:};
+        -:  109:
+        -:  110:// ----------------------- Job ---------------------
+        -:  111:// Shared between the client-handling thread and the pipeline stages.
+        -:  112:// We use cv+mutex to notify the client thread when the last stage is done.
+        -:  113:struct Job {
+        -:  114:    std::shared_ptr<Graph::Graph> graph;
+        -:  115:
+        -:  116:    // per-algorithm results (filled by stages in order)
+        -:  117:    std::string mst, maxflow, scc, clique;
+        -:  118:
+        -:  119:    // ---- cv-based reply signaling ----
+        -:  120:    std::mutex mtx;                 // protects 'done' and 'reply'
+        -:  121:    std::condition_variable cv;     // client thread waits on this
+        -:  122:    bool done = false;              // set true by the last stage
+        -:  123:    std::string reply;              // final aggregated reply
+        -:  124:};
+        -:  125:using JobPtr = std::shared_ptr<Job>; // alias for std::shared_ptr<Job>
+        -:  126:
+        -:  127:// ------------- 4 stage queues only --------------
+        -:  128:BlockingQueue<JobPtr> Q_mst;
+        -:  129:BlockingQueue<JobPtr> Q_maxflow;
+        -:  130:BlockingQueue<JobPtr> Q_scc;
+        -:  131:BlockingQueue<JobPtr> Q_clique;
+        -:  132:
+        -:  133:// ------------------- stages ---------------------
+        -:  134:// Each stage pops a Job, runs its algorithm, stores the result, and pushes to the next queue.
+        -:  135:
+    #####:  136:static void mst_stage() {
+    #####:  137:    MSTAlgorithm alg;
+        -:  138:    for (;;) {
+    #####:  139:        JobPtr job = Q_mst.pop();
+    #####:  140:        job->mst = alg.run(*job->graph);
+    #####:  141:        Q_maxflow.push(job);
+    #####:  142:    }
+    =====:  143:}
+        -:  144:
+    #####:  145:static void maxflow_stage() {
+    #####:  146:    MaxFlowAlgorithm alg;
+        -:  147:    for (;;) {
+    #####:  148:        JobPtr job = Q_maxflow.pop();
+    #####:  149:        job->maxflow = alg.run(*job->graph);
+    #####:  150:        Q_scc.push(job);
+    #####:  151:    }
+    =====:  152:}
+        -:  153:
+    #####:  154:static void scc_stage() {
+    #####:  155:    SCCAlgorithm alg;
+        -:  156:    for (;;) {
+    #####:  157:        JobPtr job = Q_scc.pop();
+    #####:  158:        job->scc = alg.run(*job->graph);
+    #####:  159:        Q_clique.push(job);
+    #####:  160:    }
+    =====:  161:}
+        -:  162:
+    #####:  163:static void clique_stage() {
+    #####:  164:    CliqueCountAlgorithm alg;
+        -:  165:    for (;;) {
+    #####:  166:        JobPtr job = Q_clique.pop();
+    #####:  167:        job->clique = alg.run(*job->graph);
+        -:  168:
+        -:  169:        // Build final reply and notify the waiting client thread.
+    #####:  170:        std::ostringstream out;
+    #####:  171:        out << "mst: "      << job->mst
+    #####:  172:            << "\nmaxflow: " << job->maxflow
+    #####:  173:            << "\nscc: "     << job->scc
+    #####:  174:            << "\nclique: "  << job->clique
+    #####:  175:            << "\n";
+        -:  176:
+        -:  177:            // ensures that the 'reply' and 'done' will be executed together (fully executed)
+        -:  178:        {
+    #####:  179:            std::lock_guard<std::mutex> lk(job->mtx);
+    #####:  180:            job->reply = out.str();
+    #####:  181:            job->done  = true;
+    #####:  182:        }
+    #####:  183:        job->cv.notify_one(); // notify AFTER releasing the lock
+    #####:  184:    }
+    =====:  185:}
+        -:  186:
+        -:  187:// -------------- per-connection handler --------------
+        -:  188:// Reads request, builds Job, enqueues, waits on cv until the last stage fills 'reply'.
+    #####:  189:static void handle_client(int new_fd) {
+    #####:  190:    std::string full_data;
+    #####:  191:    if (!recv_full_message(new_fd, full_data)) {
+    #####:  192:        const char* err = "Error: incomplete or bad message\n";
+    #####:  193:        send(new_fd, err, strlen(err), 0);
+    #####:  194:        close(new_fd);
+    #####:  195:        return;
+        -:  196:    }
+        -:  197:
+        -:  198:    // Parse headers
+    #####:  199:    std::istringstream iss(full_data);
+    #####:  200:    std::string line;
+        -:  201:
+    #####:  202:    std::getline(iss, line); /* seed (unused) */
+    #####:  203:    std::getline(iss, line); 
+    #####:  204:    int directed  = atoi(line.c_str());
+    #####:  205:    std::getline(iss, line); 
+    #####:  206:    int num_vertices = atoi(line.c_str());
+    #####:  207:    std::getline(iss, line); 
+    #####:  208:    int num_edges = atoi(line.c_str());
+        -:  209:
+        -:  210:    // Build graph
+    #####:  211:    auto job = std::make_shared<Job>();
+    #####:  212:    job->graph = std::make_shared<Graph::Graph>(num_vertices, directed);
+        -:  213:
+        -:  214:    // (generating edges) check used edges, if edge is already exists ignore, else create
+    #####:  215:    std::set<std::pair<int,int>> used;
+    #####:  216:    for (int i = 0; i < num_edges; ++i) {
+    #####:  217:        if (!std::getline(iss, line)) break;
+    #####:  218:        std::istringstream lss(line);
+    #####:  219:        int u, v, w; lss >> u >> v >> w;
+    #####:  220:        if (!lss || u<0 || u>=num_vertices || v<0 || v>=num_vertices || w<=0) continue;
+    #####:  221:        if (u==v || used.count({u,v})) continue;
+    #####:  222:        job->graph->addEdge(u, v, w);
+    #####:  223:        used.insert({u,v});
+    #####:  224:    }
+        -:  225:
+        -:  226:    // Print the received graph
+    #####:  227:    job->graph->printGraph();
+        -:  228:
+        -:  229:    // Enqueue into stage #1 (first blocking queue, pushing the first job)
+    #####:  230:    Q_mst.push(job);
+        -:  231:
+        -:  232:    // Wait until the last stage marks done=true and sets reply.
+    #####:  233:    std::string reply;
+        -:  234:    {
+    #####:  235:        std::unique_lock<std::mutex> lk(job->mtx);
+    #####:  236:        job->cv.wait(lk, [&]{ return job->done; }); // handles spurious wakeups (kistuah)
+    #####:  237:        reply = job->reply; // copy out while locked
+    #####:  238:    }
+        -:  239:
+        -:  240:    // Send and close
+    #####:  241:    send(new_fd, reply.c_str(), reply.size(), 0);
+    #####:  242:    close(new_fd);
+    #####:  243:}
+        -:  244:
+        -:  245:// ------------------------ main ------------------------
+        2:  246:int main(void) {
+        -:  247:    // Install signal handlers for graceful shutdown with gcov data flush
+        2:  248:    signal(SIGINT, signal_handler);
+        2:  249:    signal(SIGTERM, signal_handler);
+        2:  250:    signal(SIGUSR1, signal_handler); // For manual testing
+        -:  251:    
+        -:  252:    // Create listening socket (same as before)
+        -:  253:    int sockfd;
+        -:  254:    struct addrinfo hints, *servinfo, *p;
+        2:  255:    int yes = 1, rv;
+        -:  256:
+        2:  257:    memset(&hints, 0, sizeof hints);
+        2:  258:    hints.ai_family = AF_INET;
+        2:  259:    hints.ai_socktype = SOCK_STREAM;
+        2:  260:    hints.ai_flags = AI_PASSIVE;
+        -:  261:
+        2:  262:    if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
+    #####:  263:        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+    #####:  264:        return 1;
+        -:  265:    }
+        -:  266:
+        4:  267:    for (p = servinfo; p != NULL; p = p->ai_next) {
+       2*:  268:        if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+    #####:  269:            perror("server: socket"); continue;
+        -:  270:        }
+        2:  271:        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+    #####:  272:            perror("setsockopt"); exit(1);
+        -:  273:        }
+        2:  274:        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+        2:  275:            close(sockfd); perror("server: bind"); continue;
+        -:  276:        }
+    #####:  277:        break;
+        -:  278:    }
+        -:  279:
+        2:  280:    freeaddrinfo(servinfo);
+        2:  281:    if (p == NULL) { fprintf(stderr, "server: failed to bind\n"); exit(1); }
+    #####:  282:    if (listen(sockfd, BACKLOG) == -1) { perror("listen"); exit(1); }
+        -:  283:
+    #####:  284:    printf("server: waiting for connections...\n");
+        -:  285:
+        -:  286:    // Start exactly 4 Active Objects == pipeline stages
+    #####:  287:    std::thread t_mst(mst_stage);
+    #####:  288:    std::thread t_mf(maxflow_stage);
+    #####:  289:    std::thread t_scc(scc_stage);
+    #####:  290:    std::thread t_cq(clique_stage);
+        -:  291:
+        -:  292:    // Accept loop: spawn a short-lived thread per client (keeps accept responsive)
+    #####:  293:    while (!shutdown_requested) {
+        -:  294:        struct sockaddr_storage their_addr;
+    #####:  295:        socklen_t sin_size = sizeof their_addr;
+        -:  296:        
+        -:  297:        // Set socket to non-blocking or use timeout to check shutdown flag periodically
+        -:  298:        struct timeval timeout;
+    #####:  299:        timeout.tv_sec = 1;  // 1 second timeout
+    #####:  300:        timeout.tv_usec = 0;
+        -:  301:        
+        -:  302:        fd_set readfds;
+    #####:  303:        FD_ZERO(&readfds);
+    #####:  304:        FD_SET(sockfd, &readfds);
+        -:  305:        
+    #####:  306:        int result = select(sockfd + 1, &readfds, NULL, NULL, &timeout);
+    #####:  307:        if (result <= 0) {
+        -:  308:            // Timeout or error - check shutdown flag and continue
+    #####:  309:            continue;
+        -:  310:        }
+        -:  311:        
+    #####:  312:        int new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
+    #####:  313:        if (new_fd == -1) { 
+    #####:  314:            if (!shutdown_requested) perror("accept"); 
+    #####:  315:            continue; 
+        -:  316:        }
+        -:  317:
+        -:  318:        char s[INET6_ADDRSTRLEN];
+    #####:  319:        inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
+    #####:  320:        printf("server: got connection from %s\n", s);
+        -:  321:
+    #####:  322:        std::thread(handle_client, new_fd).detach();
+        -:  323:    }
+        -:  324:
+    #####:  325:    printf("server: shutting down gracefully...\n");
+    #####:  326:    close(sockfd);
+        -:  327:    
+        -:  328:    // Join the worker threads
+        -:  329:    // Note: In a real implementation, we'd signal the threads to exit gracefully
+        -:  330:    // For coverage testing, we'll just exit and let the OS clean up
+    #####:  331:    return 0;
+    #####:  332:}

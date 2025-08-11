@@ -1,0 +1,14 @@
+==221944== Memcheck, a memory error detector
+==221944== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
+==221944== Using Valgrind-3.24.0 and LibVEX; rerun with -h for copyright info
+==221944== Command: ./client -r -n 5 -e 7
+==221944== 
+==221944== 
+==221944== HEAP SUMMARY:
+==221944==     in use at exit: 0 bytes in 0 blocks
+==221944==   total heap usage: 16 allocs, 16 frees, 75,849 bytes allocated
+==221944== 
+==221944== All heap blocks were freed -- no leaks are possible
+==221944== 
+==221944== For lists of detected and suppressed errors, rerun with: -s
+==221944== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

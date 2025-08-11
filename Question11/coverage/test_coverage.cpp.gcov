@@ -1,0 +1,190 @@
+        -:    0:Source:test_coverage.cpp
+        -:    0:Graph:./test_coverage.gcno
+        -:    0:Data:./test_coverage.gcda
+        -:    0:Runs:1
+        -:    1:#include "Graph.hpp"
+        -:    2:#include "MSTAlgorithm.hpp"
+        -:    3:#include "MaxFlowAlgorithm.hpp"
+        -:    4:#include "SCCAlgorithm.hpp"
+        -:    5:#include "CliqueCountAlgorithm.hpp"
+        -:    6:#include "GraphAlgorithmFactory.hpp"
+        -:    7:#include <iostream>
+        -:    8:#include <memory>
+        -:    9:
+        1:   10:int main() {
+        1:   11:    std::cout << "Testing all algorithms for comprehensive coverage..." << std::endl;
+        -:   12:    
+        -:   13:    // Test 1: Small graph
+        1:   14:    std::cout << "=== Test 1: Small Graph ===" << std::endl;
+        1:   15:    Graph::Graph g1(3);
+        1:   16:    g1.addEdge(0, 1, 5);
+        1:   17:    g1.addEdge(1, 2, 3);
+        1:   18:    g1.addEdge(2, 0, 2);
+        -:   19:    
+        -:   20:    // Test MST Algorithm
+        1:   21:    std::cout << "Testing MST Algorithm..." << std::endl;
+        1:   22:    MSTAlgorithm mst;
+        1:   23:    std::string mst_result = mst.run(g1);
+        1:   24:    std::cout << "MST Result: " << mst_result << std::endl;
+        -:   25:    
+        -:   26:    // Test Max Flow Algorithm
+        1:   27:    std::cout << "Testing Max Flow Algorithm..." << std::endl;
+        1:   28:    MaxFlowAlgorithm maxflow;
+        1:   29:    std::string flow_result = maxflow.run(g1);
+        1:   30:    std::cout << "Max Flow Result: " << flow_result << std::endl;
+        -:   31:    
+        -:   32:    // Test SCC Algorithm
+        1:   33:    std::cout << "Testing SCC Algorithm..." << std::endl;
+        1:   34:    SCCAlgorithm scc;
+        1:   35:    std::string scc_result = scc.run(g1);
+        1:   36:    std::cout << "SCC Result: " << scc_result << std::endl;
+        -:   37:    
+        -:   38:    // Test Clique Count Algorithm
+        1:   39:    std::cout << "Testing Clique Count Algorithm..." << std::endl;
+        1:   40:    CliqueCountAlgorithm clique;
+        1:   41:    std::string clique_result = clique.run(g1);
+        1:   42:    std::cout << "Clique Result: " << clique_result << std::endl;
+        -:   43:    
+        -:   44:    // Test 2: Medium graph
+        1:   45:    std::cout << "\n=== Test 2: Medium Graph ===" << std::endl;
+        1:   46:    Graph::Graph g2(5);
+        6:   47:    for (int i = 0; i < 5; i++) {
+       15:   48:        for (int j = i + 1; j < 5; j++) {
+       10:   49:            g2.addEdge(i, j, (i + j) % 10 + 1);
+        -:   50:        }
+        -:   51:    }
+        -:   52:    
+        -:   53:    // Test all algorithms with medium graph
+        1:   54:    std::cout << "Testing with medium graph..." << std::endl;
+        1:   55:    MSTAlgorithm mst2;
+        1:   56:    MaxFlowAlgorithm maxflow2;
+        1:   57:    SCCAlgorithm scc2;
+        1:   58:    CliqueCountAlgorithm clique2;
+        -:   59:    
+        1:   60:    std::cout << "MST: " << mst2.run(g2) << std::endl;
+        1:   61:    std::cout << "Max Flow: " << maxflow2.run(g2) << std::endl;
+        1:   62:    std::cout << "SCC: " << scc2.run(g2) << std::endl;
+        1:   63:    std::cout << "Clique: " << clique2.run(g2) << std::endl;
+        -:   64:    
+        -:   65:    // Test 3: Empty graph
+        1:   66:    std::cout << "\n=== Test 3: Empty Graph ===" << std::endl;
+        1:   67:    Graph::Graph g3(2);
+        1:   68:    std::cout << "Testing with empty graph..." << std::endl;
+        1:   69:    MSTAlgorithm mst3;
+        1:   70:    MaxFlowAlgorithm maxflow3;
+        1:   71:    SCCAlgorithm scc3;
+        1:   72:    CliqueCountAlgorithm clique3;
+        -:   73:    
+        1:   74:    std::cout << "MST: " << mst3.run(g3) << std::endl;
+        1:   75:    std::cout << "Max Flow: " << maxflow3.run(g3) << std::endl;
+        1:   76:    std::cout << "SCC: " << scc3.run(g3) << std::endl;
+        1:   77:    std::cout << "Clique: " << clique3.run(g3) << std::endl;
+        -:   78:    
+        -:   79:    // Test 4: Single vertex
+        1:   80:    std::cout << "\n=== Test 4: Single Vertex ===" << std::endl;
+        1:   81:    Graph::Graph g4(1);
+        1:   82:    std::cout << "Testing with single vertex..." << std::endl;
+        1:   83:    MSTAlgorithm mst4;
+        1:   84:    MaxFlowAlgorithm maxflow4;
+        1:   85:    SCCAlgorithm scc4;
+        1:   86:    CliqueCountAlgorithm clique4;
+        -:   87:    
+        1:   88:    std::cout << "MST: " << mst4.run(g4) << std::endl;
+        1:   89:    std::cout << "Max Flow: " << maxflow4.run(g4) << std::endl;
+        1:   90:    std::cout << "SCC: " << scc4.run(g4) << std::endl;
+        1:   91:    std::cout << "Clique: " << clique4.run(g4) << std::endl;
+        -:   92:    
+        -:   93:    // Test Factory
+        1:   94:    std::cout << "\n=== Test 5: Factory Pattern ===" << std::endl;
+        1:   95:    Graph::Graph g_factory(3);
+        1:   96:    g_factory.addEdge(0, 1, 5);
+        1:   97:    g_factory.addEdge(1, 2, 3);
+        1:   98:    g_factory.addEdge(2, 0, 2);
+        -:   99:    
+        2:  100:    GraphAlgorithm* mst_factory = GraphAlgorithmFactory::create("mst");
+        2:  101:    GraphAlgorithm* flow_factory = GraphAlgorithmFactory::create("maxflow");
+        2:  102:    GraphAlgorithm* scc_factory = GraphAlgorithmFactory::create("scc");
+        1:  103:    GraphAlgorithm* clique_factory = GraphAlgorithmFactory::create("clique");
+        -:  104:    
+        1:  105:    if (mst_factory) {
+        1:  106:        std::cout << "Factory MST: " << mst_factory->run(g_factory) << std::endl;
+        1:  107:        delete mst_factory;
+        -:  108:    }
+        1:  109:    if (flow_factory) {
+        1:  110:        std::cout << "Factory MaxFlow: " << flow_factory->run(g_factory) << std::endl;
+        1:  111:        delete flow_factory;
+        -:  112:    }
+        1:  113:    if (scc_factory) {
+        1:  114:        std::cout << "Factory SCC: " << scc_factory->run(g_factory) << std::endl;
+        1:  115:        delete scc_factory;
+        -:  116:    }
+        1:  117:    if (clique_factory) {
+        1:  118:        std::cout << "Factory Clique: " << clique_factory->run(g_factory) << std::endl;
+        1:  119:        delete clique_factory;
+        -:  120:    }
+        -:  121:    
+        -:  122:    // Test unknown algorithm type
+        1:  123:    GraphAlgorithm* unknown = GraphAlgorithmFactory::create("unknown");
+        1:  124:    if (unknown == nullptr) {
+        1:  125:        std::cout << "Factory correctly returned nullptr for unknown algorithm" << std::endl;
+        -:  126:    }
+        -:  127:    
+        -:  128:    // Test Graph methods comprehensively
+        1:  129:    std::cout << "\n=== Test 6: Graph Methods ===" << std::endl;
+        1:  130:    Graph::Graph g5(4);
+        1:  131:    g5.addEdge(0, 1, 10);
+        1:  132:    g5.addEdge(1, 2, 20);
+        1:  133:    g5.addEdge(2, 3, 30);
+        1:  134:    g5.addEdge(3, 0, 40);
+        -:  135:    
+        1:  136:    std::cout << "Graph vertices: " << g5.numOfVertices() << std::endl;
+        1:  137:    std::cout << "Graph is directed: " << g5.isDirected() << std::endl;
+        1:  138:    std::cout << "Has edge (0,1): " << g5.hasEdge(0, 1) << std::endl;
+        1:  139:    std::cout << "Edge weight (0,1): " << g5.getEdgeWeight(0, 1) << std::endl;
+        1:  140:    std::cout << "Vertex 0 degree: " << g5.getVertexDegree(0) << std::endl;
+        1:  141:    std::cout << "Graph connected: " << g5.Connected() << std::endl;
+        -:  142:    
+        -:  143:    // Test different edge cases for better coverage
+        1:  144:    std::cout << "\n=== Test 7: Cycle Graph ===" << std::endl;
+        1:  145:    Graph::Graph g6(6);
+        1:  146:    g6.addEdge(0, 1, 1);
+        1:  147:    g6.addEdge(1, 2, 1);
+        1:  148:    g6.addEdge(2, 3, 1);
+        1:  149:    g6.addEdge(3, 4, 1);
+        1:  150:    g6.addEdge(4, 5, 1);
+        1:  151:    g6.addEdge(5, 0, 1);
+        -:  152:    
+        1:  153:    std::cout << "Testing algorithms with cycle graph..." << std::endl;
+        1:  154:    MSTAlgorithm mst6;
+        1:  155:    MaxFlowAlgorithm maxflow6;
+        1:  156:    SCCAlgorithm scc6;
+        1:  157:    CliqueCountAlgorithm clique6;
+        -:  158:    
+        1:  159:    std::cout << "MST: " << mst6.run(g6) << std::endl;
+        1:  160:    std::cout << "Max Flow: " << maxflow6.run(g6) << std::endl;
+        1:  161:    std::cout << "SCC: " << scc6.run(g6) << std::endl;
+        1:  162:    std::cout << "Clique: " << clique6.run(g6) << std::endl;
+        -:  163:    
+        -:  164:    // Test 8: Disconnected components
+        1:  165:    std::cout << "\n=== Test 8: Disconnected Graph ===" << std::endl;
+        1:  166:    Graph::Graph g7(6);
+        -:  167:    // First component
+        1:  168:    g7.addEdge(0, 1, 10);
+        1:  169:    g7.addEdge(1, 2, 20);
+        -:  170:    // Second component
+        1:  171:    g7.addEdge(3, 4, 30);
+        1:  172:    g7.addEdge(4, 5, 40);
+        -:  173:    
+        1:  174:    MSTAlgorithm mst7;
+        1:  175:    MaxFlowAlgorithm maxflow7;
+        1:  176:    SCCAlgorithm scc7;
+        1:  177:    CliqueCountAlgorithm clique7;
+        -:  178:    
+        1:  179:    std::cout << "MST: " << mst7.run(g7) << std::endl;
+        1:  180:    std::cout << "Max Flow: " << maxflow7.run(g7) << std::endl;
+        1:  181:    std::cout << "SCC: " << scc7.run(g7) << std::endl;
+        1:  182:    std::cout << "Clique: " << clique7.run(g7) << std::endl;
+        -:  183:    
+        1:  184:    std::cout << "\nAll algorithm tests completed!" << std::endl;
+        1:  185:    return 0;
+        1:  186:}

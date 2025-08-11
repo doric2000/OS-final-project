@@ -1,0 +1,15 @@
+==221790== Callgrind, a call-graph generating cache profiler
+==221790== Copyright (C) 2002-2017, and GNU GPL'd, by Josef Weidendorfer et al.
+==221790== Using Valgrind-3.24.0 and LibVEX; rerun with -h for copyright info
+==221790== Command: ./server
+==221790== 
+==221790== For interactive control, run 'callgrind_control -h'.
+==221790== 
+==221790== Process terminating with default action of signal 15 (SIGTERM)
+==221790==    at 0x4C31018: accept (accept.c:26)
+==221790==    by 0x10C10B: main (server.cpp:280)
+==221790== 
+==221790== Events    : Ir
+==221790== Collected : 1608155
+==221790== 
+==221790== I   refs:      1,608,155
