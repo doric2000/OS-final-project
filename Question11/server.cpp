@@ -15,6 +15,8 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <sys/select.h>
 
 #include <vector>
 #include <sstream>
@@ -24,6 +26,7 @@
 #include <condition_variable>
 #include <queue>
 #include <memory>
+#include <atomic>
 
 #include "Graph.hpp"
 #include "MSTAlgorithm.hpp"
@@ -34,7 +37,34 @@
 #define PORT "3490"
 #define BACKLOG 10
 
-// ------------------- helpers -------------------
+// Global flag to signal shutdown
+std::atomic<bool> should_exit(false);
+
+// Declaration for gcov flush function
+extern "C" void __gcov_flush(void) __attribute__((weak));
+
+// Function to check for keyboard input without blocking
+bool kbhit() {
+    int ch = getchar();
+    if (ch != EOF) {
+        ungetc(ch, stdin);
+        return true;
+    }
+    return false;
+}
+
+// Function to set stdin to non-blocking mode
+void set_stdin_nonblocking() {
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+}
+
+// Function to restore stdin to blocking mode
+void set_stdin_blocking() {
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK);
+}
+
 static void *get_in_addr(struct sockaddr *sa) {
     if (sa->sa_family == AF_INET)  return &(((struct sockaddr_in*)sa)->sin_addr);
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
@@ -74,7 +104,6 @@ static bool recv_full_message(int fd, std::string& out) {
     return lc >= expected_lines;
 }
 
-// ----------------- BlockingQueue -----------------
 template <typename T>
 class BlockingQueue {
 public:
@@ -85,10 +114,17 @@ public:
     }
     T pop() {
         std::unique_lock<std::mutex> lk(m_);
-        cv_.wait(lk, [&]{ return !q_.empty(); });
+        cv_.wait(lk, [&]{ return !q_.empty() || should_exit.load(); });
+        if (should_exit.load() && q_.empty()) {
+            return T{}; // return default-constructed object for graceful shutdown
+        }
         T x = std::move(q_.front());
         q_.pop();
         return x;
+    }
+    void shutdown() {
+        std::unique_lock<std::mutex> lk(m_);
+        cv_.notify_all();
     }
 private:
     std::mutex m_;
@@ -96,7 +132,6 @@ private:
     std::queue<T> q_;
 };
 
-// ----------------------- Job ---------------------
 // Shared between the client-handling thread and the pipeline stages.
 // We use cv+mutex to notify the client thread when the last stage is done.
 struct Job {
@@ -113,19 +148,18 @@ struct Job {
 };
 using JobPtr = std::shared_ptr<Job>; // alias for std::shared_ptr<Job>
 
-// ------------- 4 stage queues only --------------
 BlockingQueue<JobPtr> Q_mst;
 BlockingQueue<JobPtr> Q_maxflow;
 BlockingQueue<JobPtr> Q_scc;
 BlockingQueue<JobPtr> Q_clique;
 
-// ------------------- stages ---------------------
 // Each stage pops a Job, runs its algorithm, stores the result, and pushes to the next queue.
 
 static void mst_stage() {
     MSTAlgorithm alg;
-    for (;;) {
+    while (!should_exit.load()) {
         JobPtr job = Q_mst.pop();
+        if (should_exit.load() || !job) break;
         job->mst = alg.run(*job->graph);
         Q_maxflow.push(job);
     }
@@ -133,8 +167,9 @@ static void mst_stage() {
 
 static void maxflow_stage() {
     MaxFlowAlgorithm alg;
-    for (;;) {
+    while (!should_exit.load()) {
         JobPtr job = Q_maxflow.pop();
+        if (should_exit.load() || !job) break;
         job->maxflow = alg.run(*job->graph);
         Q_scc.push(job);
     }
@@ -142,8 +177,9 @@ static void maxflow_stage() {
 
 static void scc_stage() {
     SCCAlgorithm alg;
-    for (;;) {
+    while (!should_exit.load()) {
         JobPtr job = Q_scc.pop();
+        if (should_exit.load() || !job) break;
         job->scc = alg.run(*job->graph);
         Q_clique.push(job);
     }
@@ -151,8 +187,9 @@ static void scc_stage() {
 
 static void clique_stage() {
     CliqueCountAlgorithm alg;
-    for (;;) {
+    while (!should_exit.load()) {
         JobPtr job = Q_clique.pop();
+        if (should_exit.load() || !job) break;
         job->clique = alg.run(*job->graph);
 
         // Build final reply and notify the waiting client thread.
@@ -173,7 +210,6 @@ static void clique_stage() {
     }
 }
 
-// -------------- per-connection handler --------------
 // Reads request, builds Job, enqueues, waits on cv until the last stage fills 'reply'.
 static void handle_client(int new_fd) {
     std::string full_data;
@@ -231,7 +267,6 @@ static void handle_client(int new_fd) {
     close(new_fd);
 }
 
-// ------------------------ main ------------------------
 int main(void) {
     // Create listening socket (same as before)
     int sockfd;
@@ -266,6 +301,10 @@ int main(void) {
     if (listen(sockfd, BACKLOG) == -1) { perror("listen"); exit(1); }
 
     printf("server: waiting for connections...\n");
+    printf("Press 'x' + Enter to exit gracefully\n");
+
+    // Set stdin to non-blocking mode
+    set_stdin_nonblocking();
 
     // Start exactly 4 Active Objects == pipeline stages
     std::thread t_mst(mst_stage);
@@ -274,20 +313,71 @@ int main(void) {
     std::thread t_cq(clique_stage);
 
     // Accept loop: spawn a short-lived thread per client (keeps accept responsive)
-    for (;;) {
-        struct sockaddr_storage their_addr;
-        socklen_t sin_size = sizeof their_addr;
-        int new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-        if (new_fd == -1) { perror("accept"); continue; }
+    while (!should_exit.load()) {
+        // Check for keyboard input
+        if (kbhit()) {
+            char ch = getchar();
+            if (ch == 'x' || ch == 'X') {
+                printf("\nExiting server gracefully...\n");
+                should_exit.store(true);
+                break;
+            }
+        }
 
-        char s[INET6_ADDRSTRLEN];
-        inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-        printf("server: got connection from %s\n", s);
+        // Set socket to non-blocking for accept
+        struct timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 100000; // 100ms timeout
+        
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(sockfd, &readfds);
+        
+        int result = select(sockfd + 1, &readfds, NULL, NULL, &timeout);
+        if (result > 0 && FD_ISSET(sockfd, &readfds)) {
+            struct sockaddr_storage their_addr;
+            socklen_t sin_size = sizeof their_addr;
+            int new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
+            if (new_fd == -1) { 
+                perror("accept"); 
+                continue; 
+            }
 
-        std::thread(handle_client, new_fd).detach();
+            char s[INET6_ADDRSTRLEN];
+            inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
+            printf("server: got connection from %s\n", s);
+
+            std::thread(handle_client, new_fd).detach();
+        }
     }
 
-    // (Unreachable here)
-    t_mst.join(); t_mf.join(); t_scc.join(); t_cq.join();
+    // Restore stdin to blocking mode
+    set_stdin_blocking();
+
+    // Shutdown the queues to wake up blocked threads
+    Q_mst.shutdown();
+    Q_maxflow.shutdown();
+    Q_scc.shutdown();
+    Q_clique.shutdown();
+
+    // Close the listening socket
+    close(sockfd);
+
+    // Wait for all worker threads to finish
+    printf("Waiting for worker threads to finish...\n");
+    t_mst.join(); 
+    t_mf.join(); 
+    t_scc.join(); 
+    t_cq.join();
+
+    // Call gcov flush before exiting
+    printf("Flushing gcov data...\n");
+    if (__gcov_flush) {
+        __gcov_flush();
+    } else {
+        printf("gcov flush function not available\n");
+    }
+    
+    printf("Server shut down complete.\n");
     return 0;
 }

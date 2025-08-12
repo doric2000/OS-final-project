@@ -1,5 +1,6 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall -Wextra -g -pthread
+CXXFLAGS = -std=c++11 -Wall -Wextra -g -pthread --coverage
+LDFLAGS = --coverage
 
 # Source files needed for both server and client
 ALGORITHM_SOURCES = Graph.cpp MSTAlgorithm.cpp MaxFlowAlgorithm.cpp SCCAlgorithm.cpp CliqueCountAlgorithm.cpp GraphAlgorithmFactory.cpp
@@ -12,11 +13,11 @@ all: server client
 
 # Build the server executable
 server: server.o $(ALGORITHM_OBJECTS)
-	$(CXX) $(CXXFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ -o $@
 
 # Build the client executable  
 client: client.o $(ALGORITHM_OBJECTS)
-	$(CXX) $(CXXFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ -o $@
 
 # Compile server.cpp to server.o
 server.o: server.cpp
