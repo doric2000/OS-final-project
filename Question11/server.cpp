@@ -34,17 +34,6 @@
 #define PORT "3490"
 #define BACKLOG 10
 
-// Global flag for graceful shutdown
-volatile sig_atomic_t shutdown_requested = 0;
-
-// Signal handler for graceful shutdown
-void signal_handler(int sig) {
-    (void)sig; // Suppress unused parameter warning
-    shutdown_requested = 1;
-    // Exit normally to allow gcov data to be written
-    exit(0);
-}
-
 // ------------------- helpers -------------------
 static void *get_in_addr(struct sockaddr *sa) {
     if (sa->sa_family == AF_INET)  return &(((struct sockaddr_in*)sa)->sin_addr);
@@ -244,11 +233,6 @@ static void handle_client(int new_fd) {
 
 // ------------------------ main ------------------------
 int main(void) {
-    // Install signal handlers for graceful shutdown with gcov data flush
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
-    signal(SIGUSR1, signal_handler); // For manual testing
-    
     // Create listening socket (same as before)
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
@@ -290,30 +274,11 @@ int main(void) {
     std::thread t_cq(clique_stage);
 
     // Accept loop: spawn a short-lived thread per client (keeps accept responsive)
-    while (!shutdown_requested) {
+    for (;;) {
         struct sockaddr_storage their_addr;
         socklen_t sin_size = sizeof their_addr;
-        
-        // Set socket to non-blocking or use timeout to check shutdown flag periodically
-        struct timeval timeout;
-        timeout.tv_sec = 1;  // 1 second timeout
-        timeout.tv_usec = 0;
-        
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(sockfd, &readfds);
-        
-        int result = select(sockfd + 1, &readfds, NULL, NULL, &timeout);
-        if (result <= 0) {
-            // Timeout or error - check shutdown flag and continue
-            continue;
-        }
-        
         int new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-        if (new_fd == -1) { 
-            if (!shutdown_requested) perror("accept"); 
-            continue; 
-        }
+        if (new_fd == -1) { perror("accept"); continue; }
 
         char s[INET6_ADDRSTRLEN];
         inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
@@ -322,11 +287,7 @@ int main(void) {
         std::thread(handle_client, new_fd).detach();
     }
 
-    printf("server: shutting down gracefully...\n");
-    close(sockfd);
-    
-    // Join the worker threads
-    // Note: In a real implementation, we'd signal the threads to exit gracefully
-    // For coverage testing, we'll just exit and let the OS clean up
+    // (Unreachable here)
+    t_mst.join(); t_mf.join(); t_scc.join(); t_cq.join();
     return 0;
 }
