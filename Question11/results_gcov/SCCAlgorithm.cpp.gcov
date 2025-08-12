@@ -1,0 +1,52 @@
+        -:    0:Source:SCCAlgorithm.cpp
+        -:    0:Graph:SCCAlgorithm.gcno
+        -:    0:Data:SCCAlgorithm.gcda
+        -:    0:Runs:55
+        -:    1:#include "SCCAlgorithm.hpp"
+        -:    2:#include <string>
+        -:    3:#include <vector>
+        -:    4:
+       15:    5:void SCCAlgorithm::dfs(const Graph::Graph& g, int v, std::vector<bool>& visited, std::vector<int>& order) const {
+       15:    6:    visited[v] = true;
+       90:    7:    for (int u = 0; u < g.numOfVertices(); ++u) {
+       75:    8:        if (g.hasEdge(v, u) && !visited[u]) dfs(g, u, visited, order);
+        -:    9:    }
+       15:   10:    order.push_back(v);
+       15:   11:}
+        -:   12:
+       15:   13:void SCCAlgorithm::dfsRev(const Graph::Graph& g, int v, std::vector<bool>& visited, std::vector<int>& component) const {
+       15:   14:    visited[v] = true;
+       15:   15:    component.push_back(v);
+       90:   16:    for (int u = 0; u < g.numOfVertices(); ++u) {
+       75:   17:        if (g.hasEdge(u, v) && !visited[u]) dfsRev(g, u, visited, component);
+        -:   18:    }
+       15:   19:}
+        -:   20:
+        4:   21:std::string SCCAlgorithm::run(const Graph::Graph& graph) {
+        4:   22:    int n = graph.numOfVertices();
+        8:   23:    std::vector<bool> visited(n, false);
+        4:   24:    std::vector<int> order;
+       19:   25:    for (int i = 0; i < n; ++i)
+       15:   26:        if (!visited[i]) dfs(graph, i, visited, order);
+        4:   27:    std::fill(visited.begin(), visited.end(), false);
+        4:   28:    int sccCount = 0;
+        4:   29:    std::vector<std::vector<int>> sccs;
+       19:   30:    for (int i = n - 1; i >= 0; --i) {
+       15:   31:        int v = order[i];
+       15:   32:        if (!visited[v]) {
+        9:   33:            std::vector<int> comp;
+        9:   34:            dfsRev(graph, v, visited, comp);
+        9:   35:            sccs.push_back(comp);
+        9:   36:            ++sccCount;
+        9:   37:        }
+        -:   38:    }
+        4:   39:    std::string result = "Strongly connected components:";
+       13:   40:    for (size_t i = 0; i < sccs.size(); ++i) {
+        9:   41:        result += "\n       Component " + std::to_string(i+1) + ": ";
+       24:   42:        for (size_t j = 0; j < sccs[i].size(); ++j) {
+       15:   43:            result += std::to_string(sccs[i][j]);
+       15:   44:            if (j+1 < sccs[i].size()) result += ", ";
+        -:   45:        }
+        -:   46:    }
+        4:   47:    return result;
+        4:   48:}

@@ -1,0 +1,37 @@
+        -:    0:Source:MSTAlgorithm.cpp
+        -:    0:Graph:MSTAlgorithm.gcno
+        -:    0:Data:MSTAlgorithm.gcda
+        -:    0:Runs:55
+        -:    1:#include "MSTAlgorithm.hpp"
+        -:    2:#include <limits.h>
+        -:    3:#include <vector>
+        -:    4:#include <string>
+        -:    5:
+        4:    6:std::string MSTAlgorithm::run(const Graph::Graph& graph) {
+        4:    7:    int n = graph.numOfVertices();
+        8:    8:    std::vector<bool> inMST(n, false);
+        8:    9:    std::vector<int> minEdge(n, INT_MAX);
+        4:   10:    minEdge[0] = 0;
+        4:   11:    int totalWeight = 0;
+       16:   12:    for (int i = 0; i < n; ++i) {
+       13:   13:        int u = -1;
+       67:   14:        for (int v = 0; v < n; ++v) {
+       54:   15:            if (!inMST[v] && (u == -1 || minEdge[v] < minEdge[u])) u = v;
+        -:   16:        }
+       15:   17:        if (minEdge[u] == INT_MAX) return "Graph not connected";
+       12:   18:        inMST[u] = true;
+       12:   19:        totalWeight += minEdge[u];
+       62:   20:        for (int v = 0; v < n; ++v) {
+       50:   21:            if (!inMST[v]) {
+       21:   22:                int w1 = graph.getEdgeWeight(u, v);
+       21:   23:                int w2 = graph.getEdgeWeight(v, u);
+       21:   24:                int w = 0;
+       21:   25:                if (w1 > 0 && w2 > 0) w = std::min(w1, w2);
+       6*:   26:                else if (w1 > 0) w = w1;
+       6*:   27:                else if (w2 > 0) w = w2;
+       21:   28:                if (w > 0 && w < minEdge[v]) minEdge[v] = w;
+        -:   29:            }
+        -:   30:        }
+        -:   31:    }
+        3:   32:    return "MST total weight: " + std::to_string(totalWeight);
+        4:   33:}

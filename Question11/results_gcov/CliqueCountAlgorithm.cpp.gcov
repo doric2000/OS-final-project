@@ -1,0 +1,23 @@
+        -:    0:Source:CliqueCountAlgorithm.cpp
+        -:    0:Graph:CliqueCountAlgorithm.gcno
+        -:    0:Data:CliqueCountAlgorithm.gcda
+        -:    0:Runs:55
+        -:    1:#include "CliqueCountAlgorithm.hpp"
+        -:    2:#include <vector>
+        -:    3:#include <string>
+        -:    4:
+        4:    5:std::string CliqueCountAlgorithm::run(const Graph::Graph& graph) {
+        4:    6:    int n = graph.numOfVertices();
+        4:    7:    int count = 0;
+      116:    8:    for (int mask = 1; mask < (1 << n); ++mask) {
+      112:    9:        std::vector<int> nodes;
+      711:   10:        for (int i = 0; i < n; ++i) if (mask & (1 << i)) nodes.push_back(i);
+      112:   11:        if (nodes.size() < 2 || nodes.size() > 5) continue;
+       94:   12:        bool isClique = true;
+      379:   13:        for (size_t i = 0; i < nodes.size(); ++i)
+      615:   14:            for (size_t j = i + 1; j < nodes.size(); ++j)
+      330:   15:                if (!graph.hasEdge(nodes[i], nodes[j])) isClique = false;
+       94:   16:        if (isClique) ++count;
+      112:   17:    }
+        4:   18:    return "Number of cliques (size 2-5): " + std::to_string(count);
+        -:   19:}

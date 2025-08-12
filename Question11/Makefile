@@ -1,11 +1,3 @@
-# Simple Makefile for building client-server graph algorithms application
-# Usage:
-#   make          - Build both server and client
-#   make server   - Build only the server
-#   make client   - Build only the client  
-#   make clean    - Remove all compiled files
-
-# Compiler and flags
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wextra -g -pthread
 
@@ -40,7 +32,18 @@ client.o: client.cpp
 
 # Clean up compiled files
 clean:
-	rm -f *.o server client
+	rm -f *.o *.g* server client
+
+# gcov target: compile with coverage flags and run gcov on all source files
+gcov: CXXFLAGS += --coverage
+gcov: clean server client
+	@echo "Running gcov analysis on all source files..."
+	gcov $(ALGORITHM_SOURCES) server.cpp client.cpp
+	@echo "Coverage analysis complete. Check .gcov files for results."
+
+rungcov:
+	gcov *.cpp
+
 
 # Tell make that these targets don't create files with the same name
-.PHONY: all clean
+.PHONY: all clean gcov
