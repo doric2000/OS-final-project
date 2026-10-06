@@ -1,5 +1,7 @@
 # Concurrent Systems & Graph Algorithms
 
+Co-built by **Dor Cohen and Baruh Ifraimov**. The repository presents our shared systems-programming work; the contribution history records individual changes.
+
 > A C++ operating-systems project that evolves from graph algorithms into networked, concurrent server architectures and then validates them with profiling, race-detection, and coverage tooling.
 
 ![C++](https://img.shields.io/badge/C%2B%2B-Systems_Programming-00599C?style=flat-square&logo=cplusplus&logoColor=white)
